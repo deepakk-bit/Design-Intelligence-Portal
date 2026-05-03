@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, normalize } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgent } from "./agents.js";
 
@@ -50,6 +51,51 @@ const MIME = {
   ".ico": "image/x-icon",
   ".json": "application/json",
 };
+
+// Optional shared-secret HTTP Basic Auth. If BASIC_AUTH_USER and BASIC_AUTH_PASS
+// are both set, every request must present matching Basic credentials. If
+// either is unset (typical for local dev), auth is disabled.
+const AUTH_USER = process.env.BASIC_AUTH_USER || "";
+const AUTH_PASS = process.env.BASIC_AUTH_PASS || "";
+const AUTH_REQUIRED = AUTH_USER.length > 0 && AUTH_PASS.length > 0;
+
+function safeEqualStr(a, b) {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+function checkBasicAuth(req) {
+  if (!AUTH_REQUIRED) return true;
+  const header = req.headers["authorization"] || "";
+  if (!header.startsWith("Basic ")) return false;
+  let decoded;
+  try {
+    decoded = Buffer.from(header.slice(6).trim(), "base64").toString("utf8");
+  } catch {
+    return false;
+  }
+  const idx = decoded.indexOf(":");
+  if (idx < 0) return false;
+  const user = decoded.slice(0, idx);
+  const pass = decoded.slice(idx + 1);
+  // Compare both fields independently with timing-safe equality so the
+  // response time doesn't reveal which half mismatched.
+  const userOk = safeEqualStr(user, AUTH_USER);
+  const passOk = safeEqualStr(pass, AUTH_PASS);
+  return userOk && passOk;
+}
+
+function requireAuth(req, res) {
+  if (checkBasicAuth(req)) return true;
+  res.writeHead(401, {
+    "WWW-Authenticate": 'Basic realm="Design Intelligence", charset="UTF-8"',
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  res.end("Authentication required");
+  return false;
+}
 
 function sendJson(res, status, body) {
   const data = JSON.stringify(body);
@@ -323,6 +369,7 @@ async function handleChat(req, res) {
 }
 
 const server = createServer(async (req, res) => {
+  if (!requireAuth(req, res)) return;
   const url = new URL(req.url, "http://x");
   if (req.method === "POST" && url.pathname === "/api/analyze") {
     return handleAnalyze(req, res);
@@ -337,5 +384,6 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Design Intelligence → http://localhost:${PORT}  (model: ${MODEL})`);
+  const authMsg = AUTH_REQUIRED ? "Basic auth ON" : "Basic auth OFF (set BASIC_AUTH_USER / BASIC_AUTH_PASS to enable)";
+  console.log(`Design Intelligence → http://localhost:${PORT}  (model: ${MODEL}, ${authMsg})`);
 });
