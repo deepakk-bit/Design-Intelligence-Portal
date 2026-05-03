@@ -1,0 +1,16 @@
+{
+  "name": "design-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "start": "node --env-file-if-exists=.env server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
