@@ -30,15 +30,15 @@ if (existsSync(envPath)) {
 const PORT = Number(process.env.PORT ?? 4000);
 const MODEL = process.env.MODEL ?? "claude-opus-4-7";
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.error(
-    "\n  ✗ ANTHROPIC_API_KEY is not set.\n" +
-    "    Run:  echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env && npm run dev\n",
+const HAS_API_KEY = !!process.env.ANTHROPIC_API_KEY;
+if (!HAS_API_KEY) {
+  console.warn(
+    "\n  ⚠ ANTHROPIC_API_KEY not set — UI will load, but /api/analyze and /api/chat will return 503.\n" +
+      "    To enable: echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env && restart.\n",
   );
-  process.exit(1);
 }
 
-const client = new Anthropic();
+const client = HAS_API_KEY ? new Anthropic() : null;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -124,21 +124,24 @@ async function readBody(req, limit = 25 * 1024 * 1024) {
   });
 }
 
-async function serveStatic(req, res) {
-  const urlPath = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  const relPath = urlPath === "/" ? "/index.html" : urlPath;
-  const safe = normalize(relPath).replace(/^(\.\.[\\/])+/, "");
-  const filePath = join(__dirname, safe);
-  if (!filePath.startsWith(__dirname)) {
-    res.writeHead(403).end("forbidden");
-    return;
-  }
+// Serve built SPA from web/dist; fall back to legacy index.html if the build
+// hasn't been produced yet (e.g. during local dev when the Vite dev server
+// owns the frontend on a different port).
+const WEB_DIST = join(__dirname, "web", "dist");
+const LEGACY_ROOT = __dirname;
+const HAS_WEB_BUILD = existsSync(join(WEB_DIST, "index.html"));
+const STATIC_ROOTS = [
+  HAS_WEB_BUILD ? WEB_DIST : null,
+  join(__dirname, "assets"), // /assets/logo-icon.svg etc., shared with the SPA
+  LEGACY_ROOT,
+].filter(Boolean);
+const ASSETS_ROOT = join(__dirname, "assets");
+
+async function tryServe(filePath, root, res) {
+  if (!filePath.startsWith(root)) return false;
   try {
     const s = await stat(filePath);
-    if (!s.isFile()) {
-      res.writeHead(404).end("not found");
-      return;
-    }
+    if (!s.isFile()) return false;
     const buf = await readFile(filePath);
     const type = MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream";
     res.writeHead(200, {
@@ -147,12 +150,44 @@ async function serveStatic(req, res) {
       "Cache-Control": "no-cache",
     });
     res.end(buf);
+    return true;
   } catch {
-    res.writeHead(404).end("not found");
+    return false;
   }
 }
 
+async function serveStatic(req, res) {
+  const urlPath = decodeURIComponent(new URL(req.url, "http://x").pathname);
+  const safe = normalize(urlPath === "/" ? "/index.html" : urlPath).replace(
+    /^(\.\.[\\/])+/,
+    "",
+  );
+
+  // /assets/* always resolves against the shared assets dir first.
+  if (safe.startsWith("/assets/") || safe.startsWith("\\assets\\")) {
+    const rel = safe.replace(/^[\\/]assets[\\/]/, "");
+    if (await tryServe(join(ASSETS_ROOT, rel), ASSETS_ROOT, res)) return;
+  }
+
+  for (const root of STATIC_ROOTS) {
+    if (await tryServe(join(root, safe), root, res)) return;
+  }
+
+  // SPA fallback: any unknown GET (no file extension) returns index.html so
+  // client-side routes like /w/:id work on direct navigation/refresh.
+  if (HAS_WEB_BUILD && !extname(safe)) {
+    if (await tryServe(join(WEB_DIST, "index.html"), WEB_DIST, res)) return;
+  }
+
+  res.writeHead(404).end("not found");
+}
+
 async function handleAnalyze(req, res) {
+  if (!client) {
+    return sendJson(res, 503, {
+      error: "ANTHROPIC_API_KEY not configured on server.",
+    });
+  }
   let payload;
   try {
     const body = await readBody(req);
@@ -161,7 +196,7 @@ async function handleAnalyze(req, res) {
     return sendJson(res, 400, { error: "invalid request body" });
   }
 
-  const { agentId, image } = payload;
+  const { agentId, image, context } = payload;
   if (!agentId || !image?.data || !image?.mediaType) {
     return sendJson(res, 400, {
       error: "agentId and image.{data,mediaType} are required",
@@ -175,6 +210,12 @@ async function handleAnalyze(req, res) {
   if (!agent) {
     return sendJson(res, 404, { error: `unknown agent: ${agentId}` });
   }
+
+  const userContext =
+    typeof context === "string" ? context.trim().slice(0, 4000) : "";
+  const userText = userContext
+    ? `${agent.userInstruction}\n\n# Additional context from the designer\n${userContext}`
+    : agent.userInstruction;
 
   try {
     const response = await client.messages.create({
@@ -204,7 +245,7 @@ async function handleAnalyze(req, res) {
                 data: image.data,
               },
             },
-            { type: "text", text: agent.userInstruction },
+            { type: "text", text: userText },
           ],
         },
       ],
@@ -257,6 +298,11 @@ async function handleAnalyze(req, res) {
 }
 
 async function handleChat(req, res) {
+  if (!client) {
+    return sendJson(res, 503, {
+      error: "ANTHROPIC_API_KEY not configured on server.",
+    });
+  }
   let payload;
   try {
     const body = await readBody(req);

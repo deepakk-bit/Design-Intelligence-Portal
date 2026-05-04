@@ -43,7 +43,11 @@
       "Bash(git init *)",
       "Bash(grep -E \"\\\\.env\\( |$\\)\")",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git -C \"/Users/apple/Claude DIP/.claude/worktrees/busy-mcclintock-3549f0\" status)",
+      "Bash(git -C \"/Users/apple/Claude DIP/.claude/worktrees/busy-mcclintock-3549f0\" remote -v)",
+      "Bash(git -C \"/Users/apple/Claude DIP/.claude/worktrees/busy-mcclintock-3549f0\" log --oneline -5)"
     ]
   }
 }
