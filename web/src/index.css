@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #fafafb;
+  color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* React Flow overrides for floating canvas aesthetic */
+.react-flow__pane {
+  cursor: grab;
+}
+.react-flow__pane.dragging {
+  cursor: grabbing;
+}
+.react-flow__attribution {
+  display: none !important;
+}
+/* React Flow wraps every custom node in a div with default focus/selected
+   outlines. We render our own selected state inside the node, so strip
+   the wrapper's border/outline entirely. */
+.react-flow__node {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+.react-flow__node:focus,
+.react-flow__node:focus-visible,
+.react-flow__node.selected,
+.react-flow__node.selectable:focus,
+.react-flow__node.selectable:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Connection points: invisible but functional — edges visually originate
+   from the node body, no protruding dots. */
+.react-flow__handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow__edge-path {
+  stroke: #d1d5db;
+  stroke-width: 1.5;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke: #94a3b8;
+}
+/* No connectors at all — outputs are spatially grouped, not visually linked. */
+.react-flow__edges,
+.react-flow__edge,
+.react-flow__arrowhead {
+  display: none !important;
+}
+
+/* Hide default React Flow controls — we use custom floating ones */
+.react-flow__controls,
+.react-flow__minimap {
+  display: none;
+}
+
+/* Subtle scrollbars in panels */
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* Markdown prose tweaks for chat */
+.prose-chat p {
+  margin: 0 0 8px 0;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+.prose-chat ul,
+.prose-chat ol {
+  margin: 4px 0 8px 0;
+  padding-left: 18px;
+}
+.prose-chat code {
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+.prose-chat pre {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+}

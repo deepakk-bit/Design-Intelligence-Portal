@@ -1,11 +1,15 @@
 {
   "name": "design-intelligence",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --env-file-if-exists=.env --watch server.js",
-    "start": "node --env-file-if-exists=.env server.js"
+    "dev:server": "node --env-file-if-exists=.env --watch server.js",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "npm run build && npm run dev:server",
+    "build": "npm --prefix web install && npm --prefix web run build",
+    "start": "node --env-file-if-exists=.env server.js",
+    "install:web": "npm --prefix web install"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0"
