@@ -52,7 +52,9 @@
       "Bash(gh pr create --base main --head claude/busy-mcclintock-3549f0 --title 'Figma-style canvas SPA: workspaces, draggable agents, categorical outputs' --body ' *)",
       "Bash(curl -s http://localhost:58822/assets/logo-icon.svg)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:58822/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:58822/w/test01)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:58822/w/test01)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)"
     ]
   }
 }

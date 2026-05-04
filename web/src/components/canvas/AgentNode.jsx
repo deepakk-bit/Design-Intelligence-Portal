@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { ImagePlus, Play, Loader2, Trash2, X, MessageSquarePlus } from "lucide-react";
+import { ImagePlus, Play, Loader2, Trash2, X } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -8,7 +8,6 @@ import { runAgent, fileToImagePayload } from "../../lib/api.js";
 
 export default function AgentNode({ id, data, selected }) {
   const fileRef = useRef(null);
-  const [showContext, setShowContext] = useState(false);
   const def = getAgentDef(data.agentId);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const removeNode = useCanvasStore((s) => s.removeNode);
@@ -174,44 +173,20 @@ export default function AgentNode({ id, data, selected }) {
           onChange={pickFile}
         />
 
-        {/* Optional context */}
-        {showContext || data.context ? (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
-                Context (optional)
-              </label>
-              {!data.context && (
-                <button
-                  onClick={() => setShowContext(false)}
-                  className="text-[10px] text-ink-400 hover:text-ink-700"
-                >
-                  Hide
-                </button>
-              )}
-            </div>
-            <textarea
-              value={data.context ?? ""}
-              onChange={(e) => updateNodeData(id, { context: e.target.value })}
-              placeholder="e.g. B2B finance dashboard, focus on accessibility, target users are screen-reader heavy."
-              rows={3}
-              maxLength={4000}
-              className="nodrag w-full text-[12px] bg-ink-50 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 resize-none placeholder:text-ink-400"
-            />
-            {data.context && (
-              <div className="text-[10px] text-ink-400 mt-1 text-right">
-                {data.context.length}/4000
-              </div>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowContext(true)}
-            className="w-full inline-flex items-center justify-center gap-1.5 text-[11px] text-ink-500 hover:text-brand-600 py-1"
-          >
-            <MessageSquarePlus size={12} /> Add context (optional)
-          </button>
-        )}
+        {/* Optional context — always visible */}
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
+            Context (optional)
+          </label>
+          <textarea
+            value={data.context ?? ""}
+            onChange={(e) => updateNodeData(id, { context: e.target.value })}
+            placeholder="What should the agent focus on?"
+            rows={3}
+            maxLength={4000}
+            className="nodrag w-full text-[12px] bg-ink-50 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 resize-none placeholder:text-ink-400"
+          />
+        </div>
 
         {data.error && (
           <div className="text-xs text-red-600 bg-red-50 rounded-md px-2 py-1.5">
