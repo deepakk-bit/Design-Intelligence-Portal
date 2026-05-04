@@ -2012,7 +2012,9 @@
   });
 
   // ---------- file upload ----------
-  dropzone.addEventListener('click', () => fileInput.click());
+  // The dropzone is a <label> wrapping the hidden <input type="file">,
+  // so clicking it natively opens the file picker. We only need a keydown
+  // handler for keyboard accessibility (labels don't activate on Enter/Space).
   dropzone.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
   });
