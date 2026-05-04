@@ -1,14 +1,49 @@
 import { useState } from "react";
 import { Search, X } from "lucide-react";
-import { AGENT_CATEGORIES } from "../../agents.js";
+import { useReactFlow } from "@xyflow/react";
+import { nanoid } from "nanoid";
+import { AGENT_CATEGORIES, getAgentDef } from "../../agents.js";
 import { useCanvasStore } from "../../store.js";
 
 export default function AgentLibraryPanel() {
   const open = useCanvasStore((s) => s.leftPanelOpen);
   const toggle = useCanvasStore((s) => s.toggleLeftPanel);
+  const addNode = useCanvasStore((s) => s.addNode);
+  const selectNode = useCanvasStore((s) => s.selectNode);
+  const nodes = useCanvasStore((s) => s.nodes);
+  const { screenToFlowPosition } = useReactFlow();
   const [q, setQ] = useState("");
 
   if (!open) return null;
+
+  function spawnAgent(agentId) {
+    const def = getAgentDef(agentId);
+    if (!def || def.disabled) return;
+
+    // Place near the viewport center, but offset a bit so successive
+    // clicks don't pile up on the same spot.
+    const center = screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    });
+    const offset = (nodes.length % 6) * 32;
+    const node = {
+      id: nanoid(8),
+      type: "agent",
+      position: { x: center.x - 170 + offset, y: center.y - 120 + offset },
+      data: {
+        agentId: def.id,
+        status: "idle",
+        image: null,
+        result: null,
+        error: null,
+        messages: [],
+        context: "",
+      },
+    };
+    addNode(node);
+    selectNode(node.id);
+  }
 
   const query = q.trim().toLowerCase();
   const filtered = AGENT_CATEGORIES.map((c) => ({
@@ -67,7 +102,12 @@ export default function AgentLibraryPanel() {
             </div>
             <div className="space-y-1">
               {cat.agents.map((a) => (
-                <AgentRow key={a.id} agent={a} onDragStart={onDragStart} />
+                <AgentRow
+                  key={a.id}
+                  agent={a}
+                  onDragStart={onDragStart}
+                  onClick={() => spawnAgent(a.id)}
+                />
               ))}
             </div>
           </div>
@@ -75,24 +115,25 @@ export default function AgentLibraryPanel() {
       </div>
 
       <div className="px-3 py-2 border-t border-ink-100 text-[11px] text-ink-500">
-        Drag an agent onto the canvas
+        Click or drag an agent onto the canvas
       </div>
     </div>
   );
 }
 
-function AgentRow({ agent, onDragStart }) {
+function AgentRow({ agent, onDragStart, onClick }) {
   const Icon = agent.icon;
   return (
     <div
       draggable={!agent.disabled}
       onDragStart={(e) => onDragStart(e, agent)}
+      onClick={() => !agent.disabled && onClick?.()}
       className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg ${
         agent.disabled
           ? "opacity-50 cursor-not-allowed"
-          : "cursor-grab active:cursor-grabbing hover:bg-ink-50"
+          : "cursor-pointer hover:bg-ink-50"
       }`}
-      title={agent.disabled ? "Coming soon" : "Drag to canvas"}
+      title={agent.disabled ? "Coming soon" : "Click or drag to canvas"}
     >
       <div
         className="w-7 h-7 rounded-md flex items-center justify-center text-white shrink-0"
