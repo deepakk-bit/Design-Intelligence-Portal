@@ -597,9 +597,9 @@ function ReferenceCard({ ref_ }) {
         <div className="text-[12px] font-semibold text-ink-900 leading-snug line-clamp-2">
           {ref_.title}
         </div>
-        {(ref_.product || ref_.category) && (
+        {ref_.category && (
           <div className="text-[10px] text-ink-500 truncate">
-            {[ref_.product, ref_.category].filter(Boolean).join(" · ")}
+            {ref_.category}
           </div>
         )}
       </div>
