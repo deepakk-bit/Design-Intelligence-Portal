@@ -323,7 +323,7 @@ export const AGENTS = {
     schema: {
       type: "object",
       additionalProperties: false,
-      required: ["query", "queryType"],
+      required: ["query", "queryType", "platform"],
       properties: {
         query: {
           type: "string",
@@ -332,11 +332,19 @@ export const AGENTS = {
         queryType: {
           type: "string",
           enum: ["screens", "flows"],
+          description:
+            "screens for one-off components/states/screens, flows for multi-step user journeys.",
+        },
+        platform: {
+          type: "string",
+          enum: ["ios", "web"],
+          description:
+            "Target platform: ios for native iPhone/iPad, web for everything else.",
         },
       },
     },
     userInstruction:
-      "Extract the best Refero search query for what the user is designing. Output the JSON object only — no prose.",
+      "Extract the best Refero search query, queryType, and platform for what the user is designing. Output the JSON object only — no prose.",
   },
   "qa-comparison": {
     id: "qa-comparison",
