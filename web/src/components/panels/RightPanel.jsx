@@ -88,9 +88,29 @@ function PropertiesTab({ node }) {
         <Field label="Status">
           <StatusBadge status={node.data.status} />
         </Field>
-        <Field label="Image">
-          {node.data.image?.name ?? <span className="text-ink-400">none</span>}
-        </Field>
+        {def?.imageSlots ? (
+          def.imageSlots.map((slot) => (
+            <Field key={slot.key} label={slot.label}>
+              {node.data.images?.[slot.key]?.name ?? (
+                <span className="text-ink-400">none</span>
+              )}
+            </Field>
+          ))
+        ) : (def?.inputs ?? ["image"]).includes("image") ? (
+          <Field label="Image">
+            {node.data.image?.name ?? (
+              <span className="text-ink-400">none</span>
+            )}
+          </Field>
+        ) : (
+          <Field label="Component">
+            {node.data.componentName?.trim() ? (
+              node.data.componentName
+            ) : (
+              <span className="text-ink-400">none</span>
+            )}
+          </Field>
+        )}
         {node.data.result?.usage && (
           <Field label="Tokens">
             in {node.data.result.usage.input ?? "?"} · out{" "}
@@ -171,9 +191,18 @@ function ChatTab({ node }) {
       ? node
       : nodes.find((n) => n.id === node.data.sourceAgentId);
 
+  const agentDef = agentNode ? getAgentDef(agentNode.data.agentId) : null;
+  const slots = agentDef?.imageSlots ?? null;
+  const inputs = agentDef?.inputs ?? (slots ? [] : ["image"]);
+  const needsImage = !slots && inputs.includes("image");
+  const hasInput = slots
+    ? slots.every((s) => !!agentNode?.data?.images?.[s.key])
+    : needsImage
+      ? !!agentNode?.data?.image
+      : !!agentNode?.data?.componentName?.trim();
   const ready =
     agentNode?.data?.status === "done" &&
-    agentNode?.data?.image &&
+    hasInput &&
     agentNode?.data?.result;
 
   const messages = agentNode?.data?.messages ?? [];
@@ -207,12 +236,32 @@ function ChatTab({ node }) {
     setDraft("");
     setBusy(true);
     try {
+      const slots = def.imageSlots ?? null;
+      const imagesPayload =
+        slots && agentNode.data.images
+          ? Object.fromEntries(
+              slots
+                .filter((s) => !!agentNode.data.images[s.key])
+                .map((s) => [
+                  s.key,
+                  {
+                    data: agentNode.data.images[s.key].data,
+                    mediaType: agentNode.data.images[s.key].mediaType,
+                  },
+                ]),
+            )
+          : undefined;
       const res = await chatWithAgent({
         agentId: def.id,
-        image: {
-          data: agentNode.data.image.data,
-          mediaType: agentNode.data.image.mediaType,
-        },
+        image: agentNode.data.image
+          ? {
+              data: agentNode.data.image.data,
+              mediaType: agentNode.data.image.mediaType,
+            }
+          : undefined,
+        images: imagesPayload,
+        componentName: agentNode.data.componentName?.trim() || undefined,
+        context: agentNode.data.context?.trim() || undefined,
         initialResult: agentNode.data.result?.result,
         messages: next,
       });

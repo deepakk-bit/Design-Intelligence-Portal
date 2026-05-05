@@ -8,6 +8,8 @@ import {
   Ruler,
   Type,
   GitBranch,
+  Layers,
+  GitCompare,
 } from "lucide-react";
 
 export const AGENT_CATEGORIES = [
@@ -23,6 +25,47 @@ export const AGENT_CATEGORIES = [
         icon: Sparkles,
         accent: "#7c3aed",
         inputs: ["image"],
+      },
+    ],
+  },
+  {
+    id: "generation",
+    label: "Generation",
+    agents: [
+      {
+        id: "states-variants",
+        name: "States & Variants Generator",
+        description:
+          "Given a component name, lists every state and variant to design before handoff.",
+        icon: Layers,
+        accent: "#2563eb",
+        inputs: ["text"],
+      },
+    ],
+  },
+  {
+    id: "qa",
+    label: "QA",
+    agents: [
+      {
+        id: "qa-comparison",
+        name: "QA Comparison",
+        description:
+          "Compare a design screenshot against a built screenshot and produce a structured visual diff.",
+        icon: GitCompare,
+        accent: "#db2777",
+        imageSlots: [
+          {
+            key: "designImage",
+            label: "Design",
+            help: "Figma export or design-file screenshot.",
+          },
+          {
+            key: "builtImage",
+            label: "Built",
+            help: "Screenshot of the implemented UI.",
+          },
+        ],
       },
     ],
   },
