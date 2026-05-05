@@ -518,15 +518,22 @@ function ReferenceCard({ ref_ }) {
   const [downloading, setDownloading] = useState(false);
   const [busyError, setBusyError] = useState(null);
 
-  const proxyUrl = ref_.imageUrl
+  // Card preview uses the small thumbnail (fast). Copy / Download fetch the
+  // full-resolution preview URL so the asset the user pastes or saves is the
+  // higher-quality original.
+  const previewProxyUrl = ref_.imageUrl
     ? `/api/proxy-image?url=${encodeURIComponent(ref_.imageUrl)}`
+    : null;
+  const fullSrc = ref_.fullImageUrl ?? ref_.imageUrl;
+  const fullProxyUrl = fullSrc
+    ? `/api/proxy-image?url=${encodeURIComponent(fullSrc)}`
     : null;
 
   async function copyImage() {
-    if (!proxyUrl) return;
+    if (!fullProxyUrl) return;
     setBusyError(null);
     try {
-      const resp = await fetch(proxyUrl);
+      const resp = await fetch(fullProxyUrl);
       if (!resp.ok) throw new Error("fetch failed");
       const blob = await resp.blob();
       // PNG works in all browsers that implement async clipboard image write.
@@ -540,7 +547,7 @@ function ReferenceCard({ ref_ }) {
     } catch (err) {
       // Firefox / older Safari — fall back to copying the URL.
       try {
-        await navigator.clipboard.writeText(ref_.imageUrl);
+        await navigator.clipboard.writeText(fullSrc);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       } catch {
@@ -550,11 +557,11 @@ function ReferenceCard({ ref_ }) {
   }
 
   async function downloadImage() {
-    if (!proxyUrl) return;
+    if (!fullProxyUrl) return;
     setBusyError(null);
     setDownloading(true);
     try {
-      const resp = await fetch(proxyUrl);
+      const resp = await fetch(fullProxyUrl);
       if (!resp.ok) throw new Error("fetch failed");
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -582,7 +589,7 @@ function ReferenceCard({ ref_ }) {
       <div className="aspect-[4/3] bg-ink-50 overflow-hidden">
         {ref_.imageUrl ? (
           <img
-            src={proxyUrl}
+            src={previewProxyUrl}
             alt={ref_.title}
             className="w-full h-full object-cover"
             loading="lazy"
