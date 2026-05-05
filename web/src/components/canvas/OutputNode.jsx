@@ -100,11 +100,11 @@ export default function OutputNode({ id, data, selected }) {
         >
           <Icon size={16} />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-ink-900 truncate">
+        <div className="min-w-0 flex-1 text-left">
+          <div className="text-sm font-semibold text-ink-900 truncate text-left">
             {meta.label}
           </div>
-          <div className="text-[11px] text-ink-500 truncate">
+          <div className="text-[11px] text-ink-500 truncate text-left">
             {def?.name ?? "Output"} · {meta.sub}
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function OutputNode({ id, data, selected }) {
       </div>
 
       {/* `nowheel` lets the cursor scroll the node body instead of panning the canvas */}
-      <div className="nowheel max-h-[520px] overflow-y-auto scroll-thin px-4 py-3">
+      <div className="nowheel text-left max-h-[520px] overflow-y-auto scroll-thin px-4 py-3">
         {kind === "overview" && <OverviewBody result={result} />}
         {kind === "suggestions" && <SuggestionsBody result={result} />}
         {kind === "actionPlan" && <ActionPlanBody result={result} />}
@@ -411,25 +411,46 @@ function QaIssueCard({ issue }) {
     bg: "#f0f9ff",
   };
   return (
-    <div className="rounded-lg border border-ink-200 p-2.5 bg-white text-[12px] text-ink-700 leading-snug">
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="text-left rounded-lg border border-ink-200 bg-white text-[12px] text-ink-700 leading-snug overflow-hidden">
+      <div className="px-2.5 pt-2 pb-1.5 flex items-center gap-1.5 border-b border-ink-100 bg-ink-50/50">
         <span
           className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
           style={{ background: sev.bg, color: sev.color }}
         >
           {sev.label}
         </span>
+        {issue.property && (
+          <code className="text-[11px] font-mono text-ink-700 bg-ink-100 rounded px-1.5 py-0.5">
+            {issue.property}
+          </code>
+        )}
+        <div className="text-[11px] text-ink-500 truncate flex-1 text-right">
+          {issue.location}
+        </div>
       </div>
-      <div className="font-medium text-ink-900 mb-1">{issue.location}</div>
-      <div className="space-y-1">
-        <div>
-          <span className="text-ink-500">Designed: </span>
-          {issue.designed}
-        </div>
-        <div>
-          <span className="text-ink-500">Built: </span>
-          {issue.built}
-        </div>
+      <div className="grid grid-cols-2 divide-x divide-ink-100">
+        <DiffCell label="Design" value={issue.designed} tone="design" />
+        <DiffCell label="Built" value={issue.built} tone="built" />
+      </div>
+    </div>
+  );
+}
+
+function DiffCell({ label, value, tone }) {
+  const dot = tone === "design" ? "#10b981" : "#dc2626";
+  return (
+    <div className="px-2.5 py-2">
+      <div className="flex items-center gap-1.5 mb-1">
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ background: dot }}
+        />
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+          {label}
+        </span>
+      </div>
+      <div className="text-[12px] text-ink-900 leading-snug break-words">
+        {value}
       </div>
     </div>
   );

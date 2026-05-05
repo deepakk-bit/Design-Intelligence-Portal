@@ -29,29 +29,34 @@ export default function AgentNode({ id, data, selected }) {
     if (!file) return;
     try {
       const img = await fileToImagePayload(file);
-      const next = {
-        ...(data.images ?? {}),
-        [slotKey]: { ...img, name: file.name, size: file.size },
-      };
-      updateNodeData(id, {
-        images: next,
+      // Functional patch: read latest data so concurrent slot fills don't
+      // overwrite each other.
+      updateNodeData(id, (prev) => ({
+        ...prev,
+        images: {
+          ...(prev.images ?? {}),
+          [slotKey]: { ...img, name: file.name, size: file.size },
+        },
         result: null,
         error: null,
         status: "idle",
-      });
+      }));
     } catch (err) {
       updateNodeData(id, { error: err.message });
     }
   }
 
   function clearSlotImage(slotKey) {
-    const next = { ...(data.images ?? {}) };
-    delete next[slotKey];
-    updateNodeData(id, {
-      images: next,
-      result: null,
-      error: null,
-      status: "idle",
+    updateNodeData(id, (prev) => {
+      const nextImages = { ...(prev.images ?? {}) };
+      delete nextImages[slotKey];
+      return {
+        ...prev,
+        images: nextImages,
+        result: null,
+        error: null,
+        status: "idle",
+      };
     });
   }
 
