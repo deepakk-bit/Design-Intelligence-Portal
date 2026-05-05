@@ -20,7 +20,11 @@ export default function AgentNode({ id, data, selected }) {
   const slots = def.imageSlots ?? null;
   const inputs = def.inputs ?? (slots ? [] : ["image"]);
   const wantsImage = !slots && inputs.includes("image");
-  const wantsText = inputs.includes("text") && !wantsImage && !slots;
+  const wantsText = inputs.includes("text") && !slots;
+  const requireOneOf = def.inputsRequireOneOf ?? null;
+  // For prompt-style text inputs (no image alongside) we expose a "Component
+  // name" affordance; when paired with an image, we use a more general "Prompt".
+  const textKind = wantsImage && wantsText ? "prompt" : "component";
 
   const allSlotsFilled =
     !slots || slots.every((s) => !!data.images?.[s.key]);
@@ -82,8 +86,14 @@ export default function AgentNode({ id, data, selected }) {
   async function run() {
     if (data.status === "running") return;
     if (slots && !allSlotsFilled) return;
-    if (wantsImage && !data.image) return;
-    if (wantsText && !data.componentName?.trim()) return;
+    if (requireOneOf) {
+      const haveImage = !!data.image;
+      const haveText = !!data.componentName?.trim();
+      if (!haveImage && !haveText) return;
+    } else {
+      if (wantsImage && !data.image) return;
+      if (wantsText && !data.componentName?.trim()) return;
+    }
     updateNodeData(id, { status: "running", error: null });
     try {
       const imagesPayload = slots
@@ -99,11 +109,15 @@ export default function AgentNode({ id, data, selected }) {
         : undefined;
       const res = await runAgent({
         agentId: def.id,
-        image: wantsImage
-          ? { data: data.image.data, mediaType: data.image.mediaType }
-          : undefined,
+        image:
+          wantsImage && data.image
+            ? { data: data.image.data, mediaType: data.image.mediaType }
+            : undefined,
         images: imagesPayload,
-        componentName: wantsText ? data.componentName.trim() : undefined,
+        componentName:
+          wantsText && data.componentName?.trim()
+            ? data.componentName.trim()
+            : undefined,
         context: data.context?.trim() || undefined,
       });
       updateNodeData(id, { status: "done", result: res });
@@ -129,6 +143,10 @@ export default function AgentNode({ id, data, selected }) {
         {
           kind: "qaReport",
           has: !!r.summary?.recommendedAction && (r.sections?.length ?? 0) > 0,
+        },
+        {
+          kind: "references",
+          has: Array.isArray(r.references) && r.references.length > 0,
         },
       ].filter((k) => k.has);
 
@@ -215,7 +233,7 @@ export default function AgentNode({ id, data, selected }) {
           />
         )}
 
-        {wantsText && (
+        {wantsText && textKind === "component" && (
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
               Component name
@@ -229,6 +247,24 @@ export default function AgentNode({ id, data, selected }) {
               placeholder="e.g. Input Field, Button, Notification Badge"
               maxLength={200}
               className="nodrag w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 placeholder:text-ink-400"
+            />
+          </div>
+        )}
+
+        {wantsText && textKind === "prompt" && (
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
+              Prompt {data.image ? "(optional)" : "(or upload an image above)"}
+            </label>
+            <textarea
+              value={data.componentName ?? ""}
+              onChange={(e) =>
+                updateNodeData(id, { componentName: e.target.value })
+              }
+              placeholder="e.g. pricing page tiered comparison, or onboarding flow for fintech"
+              rows={2}
+              maxLength={2000}
+              className="nodrag w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 resize-none placeholder:text-ink-400"
             />
           </div>
         )}
@@ -258,8 +294,10 @@ export default function AgentNode({ id, data, selected }) {
           disabled={
             data.status === "running" ||
             (slots && !allSlotsFilled) ||
-            (wantsImage && !data.image) ||
-            (wantsText && !data.componentName?.trim())
+            (requireOneOf
+              ? !data.image && !data.componentName?.trim()
+              : (wantsImage && !data.image) ||
+                (wantsText && !data.componentName?.trim()))
           }
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
           style={{

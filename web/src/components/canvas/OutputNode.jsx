@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { useState } from "react";
 import {
   Trash2,
   AlertCircle,
@@ -8,6 +9,11 @@ import {
   Layers,
   Star,
   GitCompare,
+  Compass,
+  Copy,
+  Download,
+  ExternalLink,
+  Check,
 } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -52,6 +58,12 @@ const KINDS = {
     icon: GitCompare,
     accent: "#db2777",
     sub: "Design vs build diff",
+  },
+  references: {
+    label: "References",
+    icon: Compass,
+    accent: "#0891b2",
+    sub: "Real product screens via Refero",
   },
 };
 
@@ -125,6 +137,7 @@ export default function OutputNode({ id, data, selected }) {
         {kind === "checklist" && <ChecklistBody result={result} />}
         {kind === "recommendations" && <RecommendationsBody result={result} />}
         {kind === "qaReport" && <QaReportBody result={result} />}
+        {kind === "references" && <ReferencesBody result={result} />}
       </div>
     </div>
   );
@@ -465,6 +478,194 @@ function Pill({ color, bg, children }) {
       {children}
     </span>
   );
+}
+
+function ReferencesBody({ result }) {
+  const items = result.references ?? [];
+  if (items.length === 0) {
+    return (
+      <div className="text-[12px] text-ink-400 italic py-2">
+        No references found for "{result.query ?? "this query"}".
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-[12px] text-ink-500">
+        <span className="text-ink-700">
+          {items.length} reference{items.length === 1 ? "" : "s"}
+        </span>
+        {result.query && (
+          <>
+            <span>·</span>
+            <code className="font-mono text-[11px] bg-ink-100 px-1.5 py-0.5 rounded">
+              {result.query}
+            </code>
+          </>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {items.map((r, i) => (
+          <ReferenceCard key={r.id ?? i} ref_={r} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReferenceCard({ ref_ }) {
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [busyError, setBusyError] = useState(null);
+
+  const proxyUrl = ref_.imageUrl
+    ? `/api/proxy-image?url=${encodeURIComponent(ref_.imageUrl)}`
+    : null;
+
+  async function copyImage() {
+    if (!proxyUrl) return;
+    setBusyError(null);
+    try {
+      const resp = await fetch(proxyUrl);
+      if (!resp.ok) throw new Error("fetch failed");
+      const blob = await resp.blob();
+      // PNG works in all browsers that implement async clipboard image write.
+      const finalBlob =
+        blob.type === "image/png" ? blob : await reEncodeAsPng(blob);
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": finalBlob }),
+      ]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      // Firefox / older Safari — fall back to copying the URL.
+      try {
+        await navigator.clipboard.writeText(ref_.imageUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch {
+        setBusyError("Copy failed");
+      }
+    }
+  }
+
+  async function downloadImage() {
+    if (!proxyUrl) return;
+    setBusyError(null);
+    setDownloading(true);
+    try {
+      const resp = await fetch(proxyUrl);
+      if (!resp.ok) throw new Error("fetch failed");
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
+      const safeName = (ref_.title || ref_.product || "reference")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .slice(0, 60);
+      a.download = `${safeName || "reference"}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (err) {
+      setBusyError("Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="text-left rounded-lg border border-ink-200 bg-white overflow-hidden flex flex-col">
+      <div className="aspect-[4/3] bg-ink-50 overflow-hidden">
+        {ref_.imageUrl ? (
+          <img
+            src={proxyUrl}
+            alt={ref_.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[10px] text-ink-400">
+            no preview
+          </div>
+        )}
+      </div>
+      <div className="px-2.5 py-2 flex-1 flex flex-col gap-1">
+        <div className="text-[12px] font-semibold text-ink-900 leading-snug line-clamp-2">
+          {ref_.title}
+        </div>
+        {(ref_.product || ref_.category) && (
+          <div className="text-[10px] text-ink-500 truncate">
+            {[ref_.product, ref_.category].filter(Boolean).join(" · ")}
+          </div>
+        )}
+      </div>
+      <div className="px-2 py-1.5 border-t border-ink-100 flex items-center gap-1 bg-ink-50/50">
+        <IconAction
+          onClick={copyImage}
+          title={copied ? "Copied!" : "Copy image"}
+          icon={copied ? Check : Copy}
+          tone={copied ? "success" : "default"}
+        />
+        <IconAction
+          onClick={downloadImage}
+          title="Download image"
+          icon={Download}
+          loading={downloading}
+        />
+        {ref_.sourceUrl && (
+          <a
+            href={ref_.sourceUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            title="Open in Refero"
+            className="ml-auto p-1.5 rounded hover:bg-ink-100 text-ink-500 hover:text-ink-900"
+          >
+            <ExternalLink size={12} />
+          </a>
+        )}
+      </div>
+      {busyError && (
+        <div className="px-2.5 py-1 text-[10px] text-red-600 bg-red-50">
+          {busyError}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IconAction({ onClick, title, icon: Icon, tone, loading }) {
+  const toneCls =
+    tone === "success"
+      ? "text-emerald-600"
+      : "text-ink-500 hover:text-ink-900";
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      title={title}
+      className={`p-1.5 rounded hover:bg-ink-100 ${toneCls} disabled:opacity-50`}
+    >
+      <Icon size={12} />
+    </button>
+  );
+}
+
+async function reEncodeAsPng(blob) {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("encode failed"))),
+      "image/png",
+    );
+  });
 }
 
 function ScoreBlock({ score }) {

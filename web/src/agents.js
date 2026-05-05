@@ -10,6 +10,7 @@ import {
   GitBranch,
   Layers,
   GitCompare,
+  Compass,
 } from "lucide-react";
 
 export const AGENT_CATEGORIES = [
@@ -40,6 +41,22 @@ export const AGENT_CATEGORIES = [
         icon: Layers,
         accent: "#2563eb",
         inputs: ["text"],
+      },
+    ],
+  },
+  {
+    id: "discovery",
+    label: "Discovery",
+    agents: [
+      {
+        id: "reference-finder",
+        name: "Reference Finder",
+        description:
+          "Upload a UI element or describe one — pulls similar real-product references via Refero.",
+        icon: Compass,
+        accent: "#0891b2",
+        inputs: ["image", "text"],
+        inputsRequireOneOf: ["image", "text"],
       },
     ],
   },
