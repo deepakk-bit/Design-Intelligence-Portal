@@ -39,6 +39,7 @@ const {
   handleChat,
   handleImageProxy,
   handleReferoProbe,
+  handleReferoSearch,
 } = await import("./lib/handlers.js");
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -128,6 +129,9 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === "GET" && url.pathname === "/api/refero/probe") {
     return handleReferoProbe(req, res);
+  }
+  if (req.method === "GET" && url.pathname === "/api/refero/search") {
+    return handleReferoSearch(req, res);
   }
   if (req.method === "GET") {
     return serveStatic(req, res);
