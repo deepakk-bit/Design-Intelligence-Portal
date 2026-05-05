@@ -19,6 +19,9 @@ export default function AgentNode({ id, data, selected }) {
   if (!def) return null;
   const Icon = def.icon;
   const accent = def.accent;
+  const inputs = def.inputs ?? ["image"];
+  const wantsImage = inputs.includes("image");
+  const wantsText = inputs.includes("text") && !wantsImage;
 
   async function pickFile(e) {
     const file = e.target.files?.[0];
@@ -37,33 +40,38 @@ export default function AgentNode({ id, data, selected }) {
   }
 
   async function run() {
-    if (!data.image || data.status === "running") return;
+    if (data.status === "running") return;
+    if (wantsImage && !data.image) return;
+    if (wantsText && !data.componentName?.trim()) return;
     updateNodeData(id, { status: "running", error: null });
     try {
       const res = await runAgent({
         agentId: def.id,
-        image: { data: data.image.data, mediaType: data.image.mediaType },
+        image: wantsImage
+          ? { data: data.image.data, mediaType: data.image.mediaType }
+          : undefined,
+        componentName: wantsText ? data.componentName.trim() : undefined,
         context: data.context?.trim() || undefined,
       });
       updateNodeData(id, { status: "done", result: res });
 
-      // Fan out into 3 categorical output nodes, side-by-side, no edges:
-      //   1. Overview   = summary + findings
-      //   2. Suggestions = visual snippet proposals
-      //   3. Action plan = strengths + next steps
+      // Fan out into output nodes — kinds depend on what fields the result has.
       const r = res?.result ?? {};
       const kinds = [
         {
           kind: "overview",
           has:
-            !!r.summary ||
-            r.usabilityScore != null ||
-            (r.findings?.length ?? 0) > 0,
+            r.usabilityScore != null || (r.findings?.length ?? 0) > 0,
         },
         { kind: "suggestions", has: (r.suggestions?.length ?? 0) > 0 },
         {
           kind: "actionPlan",
           has: (r.strengths?.length ?? 0) > 0 || (r.nextSteps?.length ?? 0) > 0,
+        },
+        { kind: "checklist", has: (r.sections?.length ?? 0) > 0 },
+        {
+          kind: "recommendations",
+          has: (r.recommendations?.length ?? 0) > 0 || (r.priorityOrder?.length ?? 0) > 0,
         },
       ].filter((k) => k.has);
 
@@ -138,40 +146,62 @@ export default function AgentNode({ id, data, selected }) {
 
       {/* Body */}
       <div className="p-4 space-y-3">
-        {data.image ? (
-          <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
-            <img
-              src={data.image.dataUrl}
-              alt=""
-              className="w-full max-h-[200px] object-contain"
+        {wantsImage && (
+          <>
+            {data.image ? (
+              <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+                <img
+                  src={data.image.dataUrl}
+                  alt=""
+                  className="w-full max-h-[200px] object-contain"
+                />
+                <button
+                  onClick={clearImage}
+                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
+                >
+                  <X size={12} />
+                </button>
+                <div className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
+                  {data.image.name}
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="w-full h-[120px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1.5 text-ink-500 hover:text-brand-600 transition"
+              >
+                <ImagePlus size={20} />
+                <span className="text-xs font-medium">Drop or click to add screenshot</span>
+                <span className="text-[10px] text-ink-400">PNG, JPG, WEBP</span>
+              </button>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={pickFile}
             />
-            <button
-              onClick={clearImage}
-              className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
-            >
-              <X size={12} />
-            </button>
-            <div className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
-              {data.image.name}
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="w-full h-[120px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1.5 text-ink-500 hover:text-brand-600 transition"
-          >
-            <ImagePlus size={20} />
-            <span className="text-xs font-medium">Drop or click to add screenshot</span>
-            <span className="text-[10px] text-ink-400">PNG, JPG, WEBP</span>
-          </button>
+          </>
         )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
-          className="hidden"
-          onChange={pickFile}
-        />
+
+        {wantsText && (
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
+              Component name
+            </label>
+            <input
+              type="text"
+              value={data.componentName ?? ""}
+              onChange={(e) =>
+                updateNodeData(id, { componentName: e.target.value })
+              }
+              placeholder="e.g. Input Field, Button, Notification Badge"
+              maxLength={200}
+              className="nodrag w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 placeholder:text-ink-400"
+            />
+          </div>
+        )}
 
         {/* Optional context — always visible */}
         <div>
@@ -196,7 +226,11 @@ export default function AgentNode({ id, data, selected }) {
 
         <button
           onClick={run}
-          disabled={!data.image || data.status === "running"}
+          disabled={
+            data.status === "running" ||
+            (wantsImage && !data.image) ||
+            (wantsText && !data.componentName?.trim())
+          }
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
           style={{
             background: data.status === "running" ? "#94a3b8" : accent,

@@ -5,6 +5,8 @@ import {
   Sparkles,
   ListChecks,
   ThumbsUp,
+  Layers,
+  Star,
 } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -31,6 +33,18 @@ const KINDS = {
     icon: ListChecks,
     accent: "#059669",
     sub: "Strengths + next steps",
+  },
+  checklist: {
+    label: "States & Variants",
+    icon: Layers,
+    accent: "#2563eb",
+    sub: "Design checklist by category",
+  },
+  recommendations: {
+    label: "Priority & Best Practices",
+    icon: Star,
+    accent: "#d97706",
+    sub: "Where to start + recommendations",
   },
 };
 
@@ -97,6 +111,8 @@ export default function OutputNode({ id, data, selected }) {
         {kind === "overview" && <OverviewBody result={result} />}
         {kind === "suggestions" && <SuggestionsBody result={result} />}
         {kind === "actionPlan" && <ActionPlanBody result={result} />}
+        {kind === "checklist" && <ChecklistBody result={result} />}
+        {kind === "recommendations" && <RecommendationsBody result={result} />}
       </div>
     </div>
   );
@@ -202,6 +218,89 @@ function ActionPlanBody({ result }) {
               <li key={i}>{n}</li>
             ))}
           </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChecklistBody({ result }) {
+  const sections = result.sections ?? [];
+  return (
+    <div className="space-y-4">
+      {result.componentName && (
+        <div className="text-[12px] text-ink-500">
+          Component:{" "}
+          <span className="font-semibold text-ink-900">
+            {result.componentName}
+          </span>
+        </div>
+      )}
+      {result.summary && (
+        <p className="text-[13px] leading-relaxed text-ink-700">
+          {result.summary}
+        </p>
+      )}
+      {sections.map((s, i) => (
+        <div key={i}>
+          <SectionLabel
+            icon={Layers}
+            color="#2563eb"
+            count={s.states?.length ?? 0}
+          >
+            {s.title}
+          </SectionLabel>
+          <ul className="space-y-1.5">
+            {(s.states ?? []).map((st, j) => (
+              <li
+                key={j}
+                className="rounded-md border border-ink-200 bg-white px-2.5 py-1.5 text-[12px]"
+              >
+                <div className="font-medium text-ink-900">{st.name}</div>
+                {st.note && (
+                  <div className="text-[11px] text-ink-600 mt-0.5 leading-snug">
+                    {st.note}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecommendationsBody({ result }) {
+  const order = result.priorityOrder ?? [];
+  const recs = result.recommendations ?? [];
+  return (
+    <div className="space-y-4">
+      {order.length > 0 && (
+        <div>
+          <SectionLabel icon={ListChecks} color="#2563eb" count={order.length}>
+            Priority order
+          </SectionLabel>
+          <ol className="list-decimal pl-5 space-y-1 text-[13px] text-ink-700">
+            {order.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {recs.length > 0 && (
+        <div>
+          <SectionLabel icon={Star} color="#d97706" count={recs.length}>
+            Recommendations
+          </SectionLabel>
+          <ul className="space-y-1.5 text-[13px] text-ink-700">
+            {recs.map((r, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-amber-500 shrink-0">★</span>
+                {r}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

@@ -88,9 +88,21 @@ function PropertiesTab({ node }) {
         <Field label="Status">
           <StatusBadge status={node.data.status} />
         </Field>
-        <Field label="Image">
-          {node.data.image?.name ?? <span className="text-ink-400">none</span>}
-        </Field>
+        {(def?.inputs ?? ["image"]).includes("image") ? (
+          <Field label="Image">
+            {node.data.image?.name ?? (
+              <span className="text-ink-400">none</span>
+            )}
+          </Field>
+        ) : (
+          <Field label="Component">
+            {node.data.componentName?.trim() ? (
+              node.data.componentName
+            ) : (
+              <span className="text-ink-400">none</span>
+            )}
+          </Field>
+        )}
         {node.data.result?.usage && (
           <Field label="Tokens">
             in {node.data.result.usage.input ?? "?"} · out{" "}
@@ -171,9 +183,15 @@ function ChatTab({ node }) {
       ? node
       : nodes.find((n) => n.id === node.data.sourceAgentId);
 
+  const agentDef = agentNode ? getAgentDef(agentNode.data.agentId) : null;
+  const inputs = agentDef?.inputs ?? ["image"];
+  const needsImage = inputs.includes("image");
+  const hasInput = needsImage
+    ? !!agentNode?.data?.image
+    : !!agentNode?.data?.componentName?.trim();
   const ready =
     agentNode?.data?.status === "done" &&
-    agentNode?.data?.image &&
+    hasInput &&
     agentNode?.data?.result;
 
   const messages = agentNode?.data?.messages ?? [];
@@ -209,10 +227,14 @@ function ChatTab({ node }) {
     try {
       const res = await chatWithAgent({
         agentId: def.id,
-        image: {
-          data: agentNode.data.image.data,
-          mediaType: agentNode.data.image.mediaType,
-        },
+        image: agentNode.data.image
+          ? {
+              data: agentNode.data.image.data,
+              mediaType: agentNode.data.image.mediaType,
+            }
+          : undefined,
+        componentName: agentNode.data.componentName?.trim() || undefined,
+        context: agentNode.data.context?.trim() || undefined,
         initialResult: agentNode.data.result?.result,
         messages: next,
       });

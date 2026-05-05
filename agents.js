@@ -118,14 +118,99 @@ const interactionAnalystSchema = {
   },
 };
 
+const statesVariantsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["componentName", "summary", "sections", "priorityOrder", "recommendations"],
+  properties: {
+    componentName: {
+      type: "string",
+      description: "Echo the canonical component name you're generating states for.",
+    },
+    summary: {
+      type: "string",
+      description:
+        "1–2 sentence overview of what this component is and the most critical state-coverage concern for it.",
+    },
+    sections: {
+      type: "array",
+      description:
+        "All seven sections, in this exact order: functional, validation, content, interaction, responsive, contextual, edgeCase.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "title", "states"],
+        properties: {
+          id: {
+            type: "string",
+            enum: [
+              "functional",
+              "validation",
+              "content",
+              "interaction",
+              "responsive",
+              "contextual",
+              "edgeCase",
+            ],
+          },
+          title: { type: "string" },
+          states: {
+            type: "array",
+            description:
+              "Every applicable state/variant for this section. Use empty string for note if there's nothing useful to say.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["name", "note"],
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Short label, e.g. 'Hover', 'Disabled', 'Empty'.",
+                },
+                note: {
+                  type: "string",
+                  description:
+                    "One-line design tip or pitfall. Empty string if nothing useful to add.",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    priorityOrder: {
+      type: "array",
+      description:
+        "Ordered state/variant names (matching states[].name above) from most to least critical to design first. 6–12 entries.",
+      items: { type: "string" },
+    },
+    recommendations: {
+      type: "array",
+      description:
+        "0–6 high-leverage best practices specific to designing this component well. Skip generic platitudes.",
+      items: { type: "string" },
+    },
+  },
+};
+
 export const AGENTS = {
   interaction: {
     id: "interaction",
     name: "Component Interaction Analyst",
+    inputs: ["image"],
     systemPrompt: readPrompt("interaction-analyst.md"),
     schema: interactionAnalystSchema,
     userInstruction:
       "Analyze the component in this screenshot for interaction quality. Output the JSON object only — no prose.",
+  },
+  "states-variants": {
+    id: "states-variants",
+    name: "States & Variants Generator",
+    inputs: ["text"],
+    systemPrompt: readPrompt("states-variants-generator.md"),
+    schema: statesVariantsSchema,
+    userInstruction:
+      "Generate the complete states-and-variants checklist for the component below. Output the JSON object only — no prose.",
   },
 };
 
