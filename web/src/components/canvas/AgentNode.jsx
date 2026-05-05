@@ -7,24 +7,55 @@ import { getAgentDef } from "../../agents.js";
 import { runAgent, fileToImagePayload } from "../../lib/api.js";
 
 export default function AgentNode({ id, data, selected }) {
-  const fileRef = useRef(null);
   const def = getAgentDef(data.agentId);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const removeNode = useCanvasStore((s) => s.removeNode);
   const addNode = useCanvasStore((s) => s.addNode);
-  const addEdge = useCanvasStore((s) => s.addEdge);
   const selectNode = useCanvasStore((s) => s.selectNode);
   const nodes = useCanvasStore((s) => s.nodes);
 
   if (!def) return null;
   const Icon = def.icon;
   const accent = def.accent;
-  const inputs = def.inputs ?? ["image"];
-  const wantsImage = inputs.includes("image");
-  const wantsText = inputs.includes("text") && !wantsImage;
+  const slots = def.imageSlots ?? null;
+  const inputs = def.inputs ?? (slots ? [] : ["image"]);
+  const wantsImage = !slots && inputs.includes("image");
+  const wantsText = inputs.includes("text") && !wantsImage && !slots;
 
-  async function pickFile(e) {
-    const file = e.target.files?.[0];
+  const allSlotsFilled =
+    !slots || slots.every((s) => !!data.images?.[s.key]);
+
+  async function setSlotImage(slotKey, file) {
+    if (!file) return;
+    try {
+      const img = await fileToImagePayload(file);
+      const next = {
+        ...(data.images ?? {}),
+        [slotKey]: { ...img, name: file.name, size: file.size },
+      };
+      updateNodeData(id, {
+        images: next,
+        result: null,
+        error: null,
+        status: "idle",
+      });
+    } catch (err) {
+      updateNodeData(id, { error: err.message });
+    }
+  }
+
+  function clearSlotImage(slotKey) {
+    const next = { ...(data.images ?? {}) };
+    delete next[slotKey];
+    updateNodeData(id, {
+      images: next,
+      result: null,
+      error: null,
+      status: "idle",
+    });
+  }
+
+  async function setSingleImage(file) {
     if (!file) return;
     try {
       const img = await fileToImagePayload(file);
@@ -39,39 +70,60 @@ export default function AgentNode({ id, data, selected }) {
     }
   }
 
+  function clearSingleImage() {
+    updateNodeData(id, { image: null, result: null, error: null, status: "idle" });
+  }
+
   async function run() {
     if (data.status === "running") return;
+    if (slots && !allSlotsFilled) return;
     if (wantsImage && !data.image) return;
     if (wantsText && !data.componentName?.trim()) return;
     updateNodeData(id, { status: "running", error: null });
     try {
+      const imagesPayload = slots
+        ? Object.fromEntries(
+            slots.map((s) => [
+              s.key,
+              {
+                data: data.images[s.key].data,
+                mediaType: data.images[s.key].mediaType,
+              },
+            ]),
+          )
+        : undefined;
       const res = await runAgent({
         agentId: def.id,
         image: wantsImage
           ? { data: data.image.data, mediaType: data.image.mediaType }
           : undefined,
+        images: imagesPayload,
         componentName: wantsText ? data.componentName.trim() : undefined,
         context: data.context?.trim() || undefined,
       });
       updateNodeData(id, { status: "done", result: res });
 
-      // Fan out into output nodes — kinds depend on what fields the result has.
       const r = res?.result ?? {};
       const kinds = [
         {
           kind: "overview",
-          has:
-            r.usabilityScore != null || (r.findings?.length ?? 0) > 0,
+          has: r.usabilityScore != null || (r.findings?.length ?? 0) > 0,
         },
         { kind: "suggestions", has: (r.suggestions?.length ?? 0) > 0 },
         {
           kind: "actionPlan",
           has: (r.strengths?.length ?? 0) > 0 || (r.nextSteps?.length ?? 0) > 0,
         },
-        { kind: "checklist", has: (r.sections?.length ?? 0) > 0 },
+        { kind: "checklist", has: (r.sections?.length ?? 0) > 0 && !r.summary?.recommendedAction },
         {
           kind: "recommendations",
-          has: (r.recommendations?.length ?? 0) > 0 || (r.priorityOrder?.length ?? 0) > 0,
+          has:
+            (r.recommendations?.length ?? 0) > 0 ||
+            (r.priorityOrder?.length ?? 0) > 0,
+        },
+        {
+          kind: "qaReport",
+          has: !!r.summary?.recommendedAction && (r.sections?.length ?? 0) > 0,
         },
       ].filter((k) => k.has);
 
@@ -108,18 +160,12 @@ export default function AgentNode({ id, data, selected }) {
     }
   }
 
-  function clearImage() {
-    updateNodeData(id, { image: null, result: null, error: null, status: "idle" });
-    if (fileRef.current) fileRef.current.value = "";
-  }
-
   return (
     <div
       className={`w-[340px] bg-white rounded-2xl shadow-floating border ${
         selected ? "border-brand-500" : "border-ink-200"
       } overflow-hidden`}
     >
-      {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 border-b border-ink-100">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0"
@@ -144,45 +190,24 @@ export default function AgentNode({ id, data, selected }) {
         </button>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {wantsImage && (
-          <>
-            {data.image ? (
-              <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
-                <img
-                  src={data.image.dataUrl}
-                  alt=""
-                  className="w-full max-h-[200px] object-contain"
-                />
-                <button
-                  onClick={clearImage}
-                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
-                >
-                  <X size={12} />
-                </button>
-                <div className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
-                  {data.image.name}
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="w-full h-[120px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1.5 text-ink-500 hover:text-brand-600 transition"
-              >
-                <ImagePlus size={20} />
-                <span className="text-xs font-medium">Drop or click to add screenshot</span>
-                <span className="text-[10px] text-ink-400">PNG, JPG, WEBP</span>
-              </button>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              onChange={pickFile}
+        {slots &&
+          slots.map((slot) => (
+            <ImageSlot
+              key={slot.key}
+              slot={slot}
+              image={data.images?.[slot.key]}
+              onPick={(file) => setSlotImage(slot.key, file)}
+              onClear={() => clearSlotImage(slot.key)}
             />
-          </>
+          ))}
+
+        {wantsImage && (
+          <SingleImage
+            image={data.image}
+            onPick={setSingleImage}
+            onClear={clearSingleImage}
+          />
         )}
 
         {wantsText && (
@@ -203,7 +228,6 @@ export default function AgentNode({ id, data, selected }) {
           </div>
         )}
 
-        {/* Optional context — always visible */}
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
             Context (optional)
@@ -228,6 +252,7 @@ export default function AgentNode({ id, data, selected }) {
           onClick={run}
           disabled={
             data.status === "running" ||
+            (slots && !allSlotsFilled) ||
             (wantsImage && !data.image) ||
             (wantsText && !data.componentName?.trim())
           }
@@ -254,5 +279,100 @@ export default function AgentNode({ id, data, selected }) {
 
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
+  );
+}
+
+function ImageSlot({ slot, image, onPick, onClear }) {
+  const fileRef = useRef(null);
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1">
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+          {slot.label}
+        </label>
+        {slot.help && (
+          <span className="text-[10px] text-ink-400 truncate ml-2">
+            {slot.help}
+          </span>
+        )}
+      </div>
+      {image ? (
+        <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+          <img
+            src={image.dataUrl}
+            alt=""
+            className="w-full max-h-[140px] object-contain"
+          />
+          <button
+            onClick={onClear}
+            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
+          >
+            <X size={11} />
+          </button>
+          <div className="absolute bottom-0 inset-x-0 px-2 py-0.5 text-[10px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
+            {image.name}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full h-[80px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1 text-ink-500 hover:text-brand-600 transition"
+        >
+          <ImagePlus size={16} />
+          <span className="text-[11px] font-medium">Drop or click to add</span>
+        </button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={(e) => onPick(e.target.files?.[0])}
+      />
+    </div>
+  );
+}
+
+function SingleImage({ image, onPick, onClear }) {
+  const fileRef = useRef(null);
+  return (
+    <>
+      {image ? (
+        <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+          <img
+            src={image.dataUrl}
+            alt=""
+            className="w-full max-h-[200px] object-contain"
+          />
+          <button
+            onClick={onClear}
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
+          >
+            <X size={12} />
+          </button>
+          <div className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
+            {image.name}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full h-[120px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1.5 text-ink-500 hover:text-brand-600 transition"
+        >
+          <ImagePlus size={20} />
+          <span className="text-xs font-medium">
+            Drop or click to add screenshot
+          </span>
+          <span className="text-[10px] text-ink-400">PNG, JPG, WEBP</span>
+        </button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={(e) => onPick(e.target.files?.[0])}
+      />
+    </>
   );
 }

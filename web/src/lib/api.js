@@ -1,10 +1,16 @@
 // Thin client for the existing Node server endpoints.
 
-export async function runAgent({ agentId, image, context, componentName }) {
+export async function runAgent({
+  agentId,
+  image,
+  images,
+  context,
+  componentName,
+}) {
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agentId, image, context, componentName }),
+    body: JSON.stringify({ agentId, image, images, context, componentName }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -19,6 +25,7 @@ export async function runAgent({ agentId, image, context, componentName }) {
 export async function chatWithAgent({
   agentId,
   image,
+  images,
   initialResult,
   messages,
   componentName,
@@ -30,6 +37,7 @@ export async function chatWithAgent({
     body: JSON.stringify({
       agentId,
       image,
+      images,
       initialResult,
       messages,
       componentName,

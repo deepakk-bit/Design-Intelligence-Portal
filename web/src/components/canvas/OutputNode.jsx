@@ -7,6 +7,7 @@ import {
   ThumbsUp,
   Layers,
   Star,
+  GitCompare,
 } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -46,6 +47,12 @@ const KINDS = {
     accent: "#d97706",
     sub: "Where to start + recommendations",
   },
+  qaReport: {
+    label: "QA Report",
+    icon: GitCompare,
+    accent: "#db2777",
+    sub: "Design vs build diff",
+  },
 };
 
 const SEVERITY = {
@@ -53,6 +60,10 @@ const SEVERITY = {
   major: { label: "Major", color: "#ea580c", bg: "#fff7ed" },
   minor: { label: "Minor", color: "#ca8a04", bg: "#fefce8" },
   nit: { label: "Nit", color: "#64748b", bg: "#f1f5f9" },
+  high: { label: "High", color: "#dc2626", bg: "#fef2f2" },
+  medium: { label: "Medium", color: "#ea580c", bg: "#fff7ed" },
+  low: { label: "Low", color: "#ca8a04", bg: "#fefce8" },
+  info: { label: "Info", color: "#0284c7", bg: "#f0f9ff" },
 };
 
 export default function OutputNode({ id, data, selected }) {
@@ -113,6 +124,7 @@ export default function OutputNode({ id, data, selected }) {
         {kind === "actionPlan" && <ActionPlanBody result={result} />}
         {kind === "checklist" && <ChecklistBody result={result} />}
         {kind === "recommendations" && <RecommendationsBody result={result} />}
+        {kind === "qaReport" && <QaReportBody result={result} />}
       </div>
     </div>
   );
@@ -304,6 +316,133 @@ function RecommendationsBody({ result }) {
         </div>
       )}
     </div>
+  );
+}
+
+function QaReportBody({ result }) {
+  const sections = result.sections ?? [];
+  const sum = result.summary ?? {};
+  const actionLabel = {
+    pass: "Pass",
+    "fix-and-requa": "Fix & Re-QA",
+    "needs-design-clarification": "Needs design clarification",
+  }[sum.recommendedAction] ?? sum.recommendedAction;
+  const actionColor = {
+    pass: "#10b981",
+    "fix-and-requa": "#dc2626",
+    "needs-design-clarification": "#d97706",
+  }[sum.recommendedAction] ?? "#64748b";
+
+  return (
+    <div className="space-y-4">
+      {result.componentName && (
+        <div className="text-[12px] text-ink-500">
+          Component:{" "}
+          <span className="font-semibold text-ink-900">
+            {result.componentName}
+          </span>
+        </div>
+      )}
+      {sum.recommendedAction && (
+        <div className="rounded-lg border border-ink-200 p-3 bg-white">
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-white"
+              style={{ background: actionColor }}
+            >
+              {actionLabel}
+            </span>
+            <span className="text-[12px] text-ink-500">
+              {sum.totalIssues ?? 0} issue{sum.totalIssues === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="flex gap-2 text-[11px]">
+            <Pill color="#dc2626" bg="#fef2f2">
+              {sum.highSeverity ?? 0} high
+            </Pill>
+            <Pill color="#ea580c" bg="#fff7ed">
+              {sum.mediumSeverity ?? 0} medium
+            </Pill>
+            <Pill color="#ca8a04" bg="#fefce8">
+              {sum.lowSeverity ?? 0} low
+            </Pill>
+          </div>
+        </div>
+      )}
+      {sections.map((s, i) => (
+        <QaSection key={i} section={s} />
+      ))}
+    </div>
+  );
+}
+
+function QaSection({ section }) {
+  const issues = section.issues ?? [];
+  if (issues.length === 0) {
+    return (
+      <div>
+        <SectionLabel icon={GitCompare} color="#db2777" count={0}>
+          {section.title}
+        </SectionLabel>
+        <div className="text-[11px] text-ink-400 italic pl-1">
+          No issues found.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <SectionLabel icon={GitCompare} color="#db2777" count={issues.length}>
+        {section.title}
+      </SectionLabel>
+      <div className="space-y-2">
+        {issues.map((it, i) => (
+          <QaIssueCard key={i} issue={it} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QaIssueCard({ issue }) {
+  const sev = SEVERITY[issue.severity] ?? {
+    label: "Info",
+    color: "#0284c7",
+    bg: "#f0f9ff",
+  };
+  return (
+    <div className="rounded-lg border border-ink-200 p-2.5 bg-white text-[12px] text-ink-700 leading-snug">
+      <div className="flex items-center gap-1.5 mb-1">
+        <span
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+          style={{ background: sev.bg, color: sev.color }}
+        >
+          {sev.label}
+        </span>
+      </div>
+      <div className="font-medium text-ink-900 mb-1">{issue.location}</div>
+      <div className="space-y-1">
+        <div>
+          <span className="text-ink-500">Designed: </span>
+          {issue.designed}
+        </div>
+        <div>
+          <span className="text-ink-500">Built: </span>
+          {issue.built}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Pill({ color, bg, children }) {
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-full font-medium"
+      style={{ background: bg, color }}
+    >
+      {children}
+    </span>
   );
 }
 
