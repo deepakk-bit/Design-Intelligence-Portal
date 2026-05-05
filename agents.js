@@ -310,6 +310,34 @@ export const AGENTS = {
     userInstruction:
       "Generate the complete states-and-variants checklist for the component below. Output the JSON object only — no prose.",
   },
+  "reference-finder": {
+    id: "reference-finder",
+    name: "Reference Finder",
+    // Special pipeline: stage-1 model extracts a query, server then calls
+    // Refero MCP and returns reference cards. Strict JSON schema is used only
+    // for the query-extraction stage.
+    kind: "references",
+    inputs: ["image", "text"],
+    inputsRequireOneOf: ["image", "text"],
+    systemPrompt: readPrompt("reference-finder.md"),
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["query", "queryType"],
+      properties: {
+        query: {
+          type: "string",
+          description: "Concise 3–8 word search query for Refero.",
+        },
+        queryType: {
+          type: "string",
+          enum: ["screens", "flows"],
+        },
+      },
+    },
+    userInstruction:
+      "Extract the best Refero search query for what the user is designing. Output the JSON object only — no prose.",
+  },
   "qa-comparison": {
     id: "qa-comparison",
     name: "QA Comparison",
