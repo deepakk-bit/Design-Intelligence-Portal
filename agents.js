@@ -230,20 +230,27 @@ const qaComparisonSchema = {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["location", "designed", "built", "severity"],
+              required: ["location", "property", "designed", "built", "severity"],
               properties: {
                 location: {
                   type: "string",
                   description:
                     "Which element and where, e.g. 'Primary CTA button, top-right of header'.",
                 },
+                property: {
+                  type: "string",
+                  description:
+                    "The specific property that differs. Use the most precise label that fits, e.g. 'font-size', 'font-weight', 'line-height', 'padding-left', 'gap', 'background-color', 'border-radius', 'border-width', 'icon', 'label-text', 'shadow', 'opacity', 'alignment'. For state/component sections use a short noun like 'hover state', 'icon' or 'variant'. For clarification items use 'design intent'.",
+                },
                 designed: {
                   type: "string",
-                  description: "What the design shows for this element.",
+                  description:
+                    "Concrete designed value for that property, e.g. '16px', '600 (semibold)', '#0F172A', 'present', 'left-aligned', 'check icon (lucide)'. Be specific. If exact pixels are unreadable, give a clear relative value like '~16px' or 'larger'.",
                 },
                 built: {
                   type: "string",
-                  description: "What the built screenshot shows for this element.",
+                  description:
+                    "Concrete built value for that property, parallel format to `designed`. e.g. '14px', '500 (medium)', '#1E293B', 'missing', 'centered'.",
                 },
                 severity: {
                   type: "string",

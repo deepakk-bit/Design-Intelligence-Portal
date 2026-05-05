@@ -17,14 +17,29 @@ can render the report consistently.
 
 ---
 
+For every issue, use these fields:
+- `location` — element and where, e.g. "Primary CTA button, header right".
+- `property` — the specific property that differs. Use the most precise label
+  that fits the section: for spacing use `padding-left`, `padding-y`, `gap`,
+  `margin-top`, `alignment`; for color use `background-color`, `text-color`,
+  `border-color`, `icon-color`; for typography use `font-size`, `font-weight`,
+  `line-height`, `letter-spacing`, `font-family`, `text-transform`; for states
+  use a short noun like `hover state`, `focus state`, `disabled style`, `error
+  state`; for component deviations use `variant`, `icon`, `label-text`, `control
+  type`; for responsive use `wrap`, `overflow`, `breakpoint`; for clarification
+  use `design intent`.
+- `designed` — concrete designed value for that property, e.g. `16px`,
+  `600 (semibold)`, `#0F172A`, `present`, `left-aligned`. If pixels are
+  unreadable, give a clear relative value (`~16px`, `larger`).
+- `built` — concrete built value, parallel format to `designed`.
+- `severity` — `high` / `medium` / `low` (or `info` for clarification only).
+
 ### 1. Spacing & Layout (id: spacing)
 Padding, margin, gap, alignment, size, position differences.
-Each issue: `location` (which element, where), `designed` (what the design shows),
-`built` (what the build shows).
 
 ### 2. Colour (id: color)
 Background, text, border, icon, surface colour mismatches — including state colours
-(e.g. hover, focus, error) when both screenshots show that state.
+(hover, focus, error) when both screenshots show that state.
 
 ### 3. Typography (id: typography)
 Font size, weight, line-height, letter-spacing, family, casing, alignment.
@@ -49,7 +64,7 @@ items in this section, set `severity` to `"info"`.
 
 ---
 
-For every issue, choose a `severity`:
+Severity guide:
 - **high** — visible to users, breaks design intent or usability.
 - **medium** — noticeable inconsistency, should be fixed before release.
 - **low** — minor polish, can be addressed in a future pass.
