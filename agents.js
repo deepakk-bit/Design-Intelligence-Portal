@@ -346,6 +346,125 @@ export const AGENTS = {
     userInstruction:
       "Extract the best Refero search query, queryType, and platform for what the user is designing. Output the JSON object only — no prose.",
   },
+  "qa-report": {
+    id: "qa-report",
+    name: "QA Report",
+    // Tool-driven pipeline: server captures a live screenshot of the URL and
+    // pulls an HTML digest, then asks the model to QA against the design ref.
+    kind: "qa-report",
+    inputs: ["image", "text"],
+    inputsRequireAll: ["image", "text"],
+    textInputKind: "url",
+    systemPrompt: readPrompt("qa-report.md"),
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "url",
+        "summary",
+        "verdict",
+        "issues",
+        "checkCoverage",
+        "recommendations",
+      ],
+      properties: {
+        url: { type: "string" },
+        summary: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "totalIssues",
+            "highSeverity",
+            "mediumSeverity",
+            "lowSeverity",
+          ],
+          properties: {
+            totalIssues: { type: "integer" },
+            highSeverity: { type: "integer" },
+            mediumSeverity: { type: "integer" },
+            lowSeverity: { type: "integer" },
+          },
+        },
+        verdict: {
+          type: "object",
+          additionalProperties: false,
+          required: ["status", "reason"],
+          properties: {
+            status: {
+              type: "string",
+              enum: ["ready", "conditional", "blocked"],
+            },
+            reason: { type: "string" },
+          },
+        },
+        issues: {
+          type: "array",
+          description:
+            "Sorted: all high first, then medium, then low. One row per finding.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "name",
+              "severity",
+              "category",
+              "description",
+              "recommendation",
+            ],
+            properties: {
+              name: { type: "string" },
+              severity: {
+                type: "string",
+                enum: ["high", "medium", "low"],
+              },
+              category: {
+                type: "string",
+                enum: [
+                  "ui",
+                  "copy",
+                  "design-system",
+                  "accessibility",
+                  "responsiveness",
+                ],
+              },
+              description: { type: "string" },
+              recommendation: { type: "string" },
+            },
+          },
+        },
+        checkCoverage: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "ui",
+            "copy",
+            "designSystem",
+            "accessibility",
+            "responsiveness",
+          ],
+          properties: {
+            ui: { type: "integer" },
+            copy: { type: "integer" },
+            designSystem: { type: "integer" },
+            accessibility: { type: "integer" },
+            responsiveness: { type: "integer" },
+          },
+        },
+        recommendations: {
+          type: "object",
+          additionalProperties: false,
+          required: ["doNow", "thisSprint", "backlog"],
+          properties: {
+            doNow: { type: "array", items: { type: "string" } },
+            thisSprint: { type: "array", items: { type: "string" } },
+            backlog: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+    },
+    userInstruction:
+      "Compare the live screenshot (image 2) against the design reference (image 1). Use the page digest below for accessibility and copy checks. Output the JSON QA report only — no prose.",
+  },
   "qa-comparison": {
     id: "qa-comparison",
     name: "QA Comparison",

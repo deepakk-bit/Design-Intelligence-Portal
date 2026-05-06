@@ -59,6 +59,12 @@ const KINDS = {
     accent: "#db2777",
     sub: "Design vs build diff",
   },
+  qaReportFull: {
+    label: "QA Report",
+    icon: GitCompare,
+    accent: "#9333ea",
+    sub: "Live audit vs design reference",
+  },
   references: {
     label: "References",
     icon: Compass,
@@ -136,6 +142,7 @@ export default function OutputNode({ id, data, selected }) {
         {kind === "actionPlan" && <ActionPlanBody result={result} />}
         {kind === "checklist" && <ChecklistBody result={result} />}
         {kind === "recommendations" && <RecommendationsBody result={result} />}
+        {kind === "qaReportFull" && <QaReportFullBody result={result} />}
         {kind === "qaReport" && <QaReportBody result={result} />}
         {kind === "references" && <ReferencesBody result={result} />}
       </div>
@@ -328,6 +335,185 @@ function RecommendationsBody({ result }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+function QaReportFullBody({ result }) {
+  const sum = result.summary ?? {};
+  const verdict = result.verdict ?? {};
+  const issues = result.issues ?? [];
+  const cov = result.checkCoverage ?? {};
+  const recs = result.recommendations ?? {};
+
+  const verdictColor = {
+    ready: "#10b981",
+    conditional: "#d97706",
+    blocked: "#dc2626",
+  }[verdict.status] ?? "#64748b";
+  const verdictLabel = {
+    ready: "Ready",
+    conditional: "Conditional",
+    blocked: "Blocked",
+  }[verdict.status] ?? verdict.status;
+
+  return (
+    <div className="space-y-4">
+      {result.url && (
+        <div className="text-[12px] text-ink-500 break-all">
+          <span className="text-ink-400">URL: </span>
+          <span className="font-mono text-ink-900">{result.url}</span>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-ink-200 p-3 bg-white">
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-white"
+            style={{ background: verdictColor }}
+          >
+            {verdictLabel}
+          </span>
+          <span className="text-[12px] text-ink-500">
+            {sum.totalIssues ?? 0} issue{sum.totalIssues === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="flex gap-2 text-[11px] mb-2">
+          <Pill color="#dc2626" bg="#fef2f2">
+            {sum.highSeverity ?? 0} high
+          </Pill>
+          <Pill color="#ea580c" bg="#fff7ed">
+            {sum.mediumSeverity ?? 0} medium
+          </Pill>
+          <Pill color="#ca8a04" bg="#fefce8">
+            {sum.lowSeverity ?? 0} low
+          </Pill>
+        </div>
+        {verdict.reason && (
+          <p className="text-[12px] leading-snug text-ink-700">
+            {verdict.reason}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <SectionLabel icon={GitCompare} color="#9333ea" count={issues.length}>
+          Issue log
+        </SectionLabel>
+        {issues.length === 0 ? (
+          <div className="text-[11px] text-ink-400 italic">No issues found.</div>
+        ) : (
+          <div className="space-y-2">
+            {issues.map((it, i) => (
+              <QaReportIssueRow key={i} index={i + 1} issue={it} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <SectionLabel icon={ListChecks} color="#2563eb">
+          Check coverage
+        </SectionLabel>
+        <div className="grid grid-cols-2 gap-1.5 text-[11px] text-ink-700">
+          <CoverageRow label="UI consistency" count={cov.ui} />
+          <CoverageRow label="Copy & typography" count={cov.copy} />
+          <CoverageRow label="Design system" count={cov.designSystem} />
+          <CoverageRow label="Accessibility" count={cov.accessibility} />
+          <CoverageRow label="Responsiveness" count={cov.responsiveness} />
+        </div>
+      </div>
+
+      {(recs.doNow?.length || recs.thisSprint?.length || recs.backlog?.length) && (
+        <div>
+          <SectionLabel icon={Star} color="#d97706">
+            Recommendations
+          </SectionLabel>
+          <RecommendationGroup
+            label="Do now"
+            color="#dc2626"
+            items={recs.doNow ?? []}
+          />
+          <RecommendationGroup
+            label="This sprint"
+            color="#ea580c"
+            items={recs.thisSprint ?? []}
+          />
+          <RecommendationGroup
+            label="Backlog"
+            color="#ca8a04"
+            items={recs.backlog ?? []}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QaReportIssueRow({ index, issue }) {
+  const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
+  const catLabel = {
+    ui: "UI",
+    copy: "Copy",
+    "design-system": "Design system",
+    accessibility: "A11y",
+    responsiveness: "Responsive",
+  }[issue.category] ?? issue.category;
+  return (
+    <div className="rounded-lg border border-ink-200 p-2.5 bg-white text-[12px] text-ink-700 leading-snug">
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-[10px] text-ink-400 font-mono">#{index}</span>
+        <span
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+          style={{ background: sev.bg, color: sev.color }}
+        >
+          {sev.label}
+        </span>
+        <span className="text-[10px] text-ink-500 uppercase tracking-wide">
+          {catLabel}
+        </span>
+      </div>
+      <div className="font-medium text-ink-900 mb-1">{issue.name}</div>
+      <div className="space-y-1">
+        <div>
+          <span className="text-ink-500">What: </span>
+          {issue.description}
+        </div>
+        <div>
+          <span className="text-ink-500">Fix: </span>
+          {issue.recommendation}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoverageRow({ label, count }) {
+  return (
+    <div className="flex items-center justify-between rounded-md bg-ink-50 px-2 py-1">
+      <span>{label}</span>
+      <span className="font-semibold tabular-nums text-ink-900">
+        {count ?? 0}
+      </span>
+    </div>
+  );
+}
+
+function RecommendationGroup({ label, color, items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="mb-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color }}>
+        {label}
+      </div>
+      <ul className="space-y-1 text-[12px] text-ink-700">
+        {items.map((s, i) => (
+          <li key={i} className="flex gap-2">
+            <span style={{ color }} className="shrink-0">•</span>
+            {s}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

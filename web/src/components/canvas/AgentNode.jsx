@@ -22,9 +22,14 @@ export default function AgentNode({ id, data, selected }) {
   const wantsImage = !slots && inputs.includes("image");
   const wantsText = inputs.includes("text") && !slots;
   const requireOneOf = def.inputsRequireOneOf ?? null;
-  // For prompt-style text inputs (no image alongside) we expose a "Component
-  // name" affordance; when paired with an image, we use a more general "Prompt".
-  const textKind = wantsImage && wantsText ? "prompt" : "component";
+  const requireAll = def.inputsRequireAll ?? null;
+  // Text input UX:
+  //   "url"       → URL field (QA Report)
+  //   "prompt"    → multi-line prompt (image+text agents)
+  //   "component" → single-line component name (text-only agents)
+  const textKind =
+    def.textInputKind ??
+    (wantsImage && wantsText ? "prompt" : "component");
 
   const allSlotsFilled =
     !slots || slots.every((s) => !!data.images?.[s.key]);
@@ -86,7 +91,10 @@ export default function AgentNode({ id, data, selected }) {
   async function run() {
     if (data.status === "running") return;
     if (slots && !allSlotsFilled) return;
-    if (requireOneOf) {
+    if (requireAll) {
+      if (requireAll.includes("image") && !data.image) return;
+      if (requireAll.includes("text") && !data.componentName?.trim()) return;
+    } else if (requireOneOf) {
       const haveImage = !!data.image;
       const haveText = !!data.componentName?.trim();
       if (!haveImage && !haveText) return;
@@ -143,6 +151,10 @@ export default function AgentNode({ id, data, selected }) {
         {
           kind: "qaReport",
           has: !!r.summary?.recommendedAction && (r.sections?.length ?? 0) > 0,
+        },
+        {
+          kind: "qaReportFull",
+          has: !!r.verdict && Array.isArray(r.issues) && !!r.checkCoverage,
         },
         {
           kind: "references",
@@ -269,6 +281,25 @@ export default function AgentNode({ id, data, selected }) {
           </div>
         )}
 
+        {wantsText && textKind === "url" && (
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
+              Live URL
+            </label>
+            <input
+              type="url"
+              inputMode="url"
+              value={data.componentName ?? ""}
+              onChange={(e) =>
+                updateNodeData(id, { componentName: e.target.value })
+              }
+              placeholder="https://example.com/page"
+              maxLength={500}
+              className="nodrag w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 placeholder:text-ink-400"
+            />
+          </div>
+        )}
+
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
             Context (optional)
@@ -294,10 +325,14 @@ export default function AgentNode({ id, data, selected }) {
           disabled={
             data.status === "running" ||
             (slots && !allSlotsFilled) ||
-            (requireOneOf
-              ? !data.image && !data.componentName?.trim()
-              : (wantsImage && !data.image) ||
-                (wantsText && !data.componentName?.trim()))
+            (requireAll
+              ? (requireAll.includes("image") && !data.image) ||
+                (requireAll.includes("text") &&
+                  !data.componentName?.trim())
+              : requireOneOf
+                ? !data.image && !data.componentName?.trim()
+                : (wantsImage && !data.image) ||
+                  (wantsText && !data.componentName?.trim()))
           }
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
           style={{
