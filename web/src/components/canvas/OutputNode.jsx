@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Trash2,
   AlertCircle,
@@ -14,6 +15,9 @@ import {
   Download,
   ExternalLink,
   Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -668,6 +672,7 @@ function Pill({ color, bg, children }) {
 
 function ReferencesBody({ result }) {
   const items = result.references ?? [];
+  const [openIdx, setOpenIdx] = useState(null);
   if (items.length === 0) {
     return (
       <div className="text-[12px] text-ink-400 italic py-2">
@@ -692,21 +697,32 @@ function ReferencesBody({ result }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         {items.map((r, i) => (
-          <ReferenceCard key={r.id ?? i} ref_={r} />
+          <ReferenceCard
+            key={r.id ?? i}
+            ref_={r}
+            onOpen={() => setOpenIdx(i)}
+          />
         ))}
       </div>
+      {openIdx !== null && (
+        <ReferenceLightbox
+          items={items}
+          index={openIdx}
+          onClose={() => setOpenIdx(null)}
+          onNavigate={setOpenIdx}
+        />
+      )}
     </div>
   );
 }
 
-function ReferenceCard({ ref_ }) {
+// Shared copy/download behavior for any reference. The card and the lightbox
+// both lean on this so a single bug fix benefits both.
+function useImageActions(ref_) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [busyError, setBusyError] = useState(null);
 
-  // Card preview uses the small thumbnail (fast). Copy / Download fetch the
-  // full-resolution preview URL so the asset the user pastes or saves is the
-  // higher-quality original.
   const previewProxyUrl = ref_.imageUrl
     ? `/api/proxy-image?url=${encodeURIComponent(ref_.imageUrl)}`
     : null;
@@ -722,7 +738,6 @@ function ReferenceCard({ ref_ }) {
       const resp = await fetch(fullProxyUrl);
       if (!resp.ok) throw new Error("fetch failed");
       const blob = await resp.blob();
-      // PNG works in all browsers that implement async clipboard image write.
       const finalBlob =
         blob.type === "image/png" ? blob : await reEncodeAsPng(blob);
       await navigator.clipboard.write([
@@ -730,8 +745,7 @@ function ReferenceCard({ ref_ }) {
       ]);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
-      // Firefox / older Safari — fall back to copying the URL.
+    } catch {
       try {
         await navigator.clipboard.writeText(fullSrc);
         setCopied(true);
@@ -763,21 +777,47 @@ function ReferenceCard({ ref_ }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch (err) {
+    } catch {
       setBusyError("Download failed");
     } finally {
       setDownloading(false);
     }
   }
 
+  return {
+    previewProxyUrl,
+    fullProxyUrl,
+    copyImage,
+    downloadImage,
+    copied,
+    downloading,
+    busyError,
+  };
+}
+
+function ReferenceCard({ ref_, onOpen }) {
+  const {
+    previewProxyUrl,
+    copyImage,
+    downloadImage,
+    copied,
+    downloading,
+    busyError,
+  } = useImageActions(ref_);
+
   return (
     <div className="text-left rounded-lg border border-ink-200 bg-white overflow-hidden flex flex-col">
-      <div className="aspect-[4/3] bg-ink-50 overflow-hidden">
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Open preview"
+        className="block aspect-[4/3] bg-ink-50 overflow-hidden cursor-zoom-in group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      >
         {ref_.imageUrl ? (
           <img
             src={previewProxyUrl}
             alt={ref_.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
             loading="lazy"
           />
         ) : (
@@ -785,7 +825,7 @@ function ReferenceCard({ ref_ }) {
             no preview
           </div>
         )}
-      </div>
+      </button>
       <div className="px-2.5 py-2 flex-1 flex flex-col gap-1">
         <div className="text-[12px] font-semibold text-ink-900 leading-snug line-clamp-2">
           {ref_.title}
@@ -827,6 +867,152 @@ function ReferenceCard({ ref_ }) {
         </div>
       )}
     </div>
+  );
+}
+
+function ReferenceLightbox({ items, index, onClose, onNavigate }) {
+  const ref_ = items[index];
+  const {
+    fullProxyUrl,
+    previewProxyUrl,
+    copyImage,
+    downloadImage,
+    copied,
+    downloading,
+    busyError,
+  } = useImageActions(ref_);
+
+  const hasPrev = index > 0;
+  const hasNext = index < items.length - 1;
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft" && hasPrev) onNavigate(index - 1);
+      else if (e.key === "ArrowRight" && hasNext) onNavigate(index + 1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, hasPrev, hasNext, onClose, onNavigate]);
+
+  // Lock body scroll while open.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!ref_) return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 nodrag nowheel"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-[1100px] max-h-full bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+      >
+        <div className="flex items-start gap-3 px-4 py-3 border-b border-ink-100">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-ink-900 truncate">
+              {ref_.title}
+            </div>
+            <div className="text-[11px] text-ink-500 truncate">
+              {[ref_.product, ref_.category].filter(Boolean).join(" · ") ||
+                "Reference"}
+            </div>
+          </div>
+          <div className="text-[11px] text-ink-400 tabular-nums shrink-0">
+            {index + 1} / {items.length}
+          </div>
+          <button
+            onClick={onClose}
+            title="Close (Esc)"
+            className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="relative flex-1 min-h-0 bg-ink-50 flex items-center justify-center">
+          {ref_.imageUrl ? (
+            <img
+              src={fullProxyUrl ?? previewProxyUrl}
+              alt={ref_.title}
+              className="max-w-full max-h-[70vh] object-contain"
+            />
+          ) : (
+            <div className="text-sm text-ink-400 py-12">No preview available</div>
+          )}
+          {hasPrev && (
+            <button
+              onClick={() => onNavigate(index - 1)}
+              title="Previous (←)"
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 hover:bg-white shadow text-ink-700"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          {hasNext && (
+            <button
+              onClick={() => onNavigate(index + 1)}
+              title="Next (→)"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 hover:bg-white shadow text-ink-700"
+            >
+              <ChevronRight size={18} />
+            </button>
+          )}
+        </div>
+
+        {ref_.description && (
+          <div className="px-4 py-3 border-t border-ink-100 max-h-[120px] overflow-y-auto scroll-thin text-[12px] text-ink-700 leading-snug">
+            {ref_.description}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-ink-100 bg-ink-50/50">
+          <button
+            onClick={copyImage}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition ${
+              copied
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-ink-200 bg-white hover:bg-ink-50 text-ink-700"
+            }`}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? "Copied" : "Copy image"}
+          </button>
+          <button
+            onClick={downloadImage}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border border-ink-200 bg-white hover:bg-ink-50 text-ink-700 disabled:opacity-50"
+          >
+            <Download size={13} />
+            {downloading ? "Downloading…" : "Download"}
+          </button>
+          {ref_.sourceUrl && (
+            <a
+              href={ref_.sourceUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border border-ink-200 bg-white hover:bg-ink-50 text-ink-700 ml-auto"
+            >
+              <ExternalLink size={13} />
+              Open in Refero
+            </a>
+          )}
+          {busyError && (
+            <span className="text-[11px] text-red-600 ml-2">{busyError}</span>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
