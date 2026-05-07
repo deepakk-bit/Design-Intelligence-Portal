@@ -30,6 +30,7 @@ export async function chatWithAgent({
   messages,
   componentName,
   context,
+  signal,
 }) {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -43,6 +44,7 @@ export async function chatWithAgent({
       componentName,
       context,
     }),
+    signal,
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
