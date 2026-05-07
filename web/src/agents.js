@@ -9,7 +9,6 @@ import {
   Type,
   GitBranch,
   Layers,
-  GitCompare,
   Compass,
   ClipboardCheck,
 } from "lucide-react";
@@ -66,12 +65,12 @@ export const AGENT_CATEGORIES = [
     label: "QA",
     agents: [
       {
-        id: "qa-comparison",
-        name: "QA Comparison",
+        id: "qa-review",
+        name: "QA Review",
         description:
-          "Compare a design screenshot against a built screenshot and produce a structured visual diff.",
-        icon: GitCompare,
-        accent: "#db2777",
+          "Compare design vs built screenshots and produce a concise QA review — verdict, checkable issue log, coverage by category, and prioritised recommendations.",
+        icon: ClipboardCheck,
+        accent: "#9333ea",
         imageSlots: [
           {
             key: "designImage",
@@ -84,17 +83,6 @@ export const AGENT_CATEGORIES = [
             help: "Screenshot of the implemented UI.",
           },
         ],
-      },
-      {
-        id: "qa-report",
-        name: "QA Report",
-        description:
-          "Audit a live URL against a design reference — captures the live page, then produces a full QA report with severity-ranked issues and a verdict.",
-        icon: ClipboardCheck,
-        accent: "#9333ea",
-        inputs: ["image", "text"],
-        inputsRequireAll: ["image", "text"],
-        textInputKind: "url",
       },
     ],
   },

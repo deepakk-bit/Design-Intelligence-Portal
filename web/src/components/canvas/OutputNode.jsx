@@ -9,7 +9,7 @@ import {
   ThumbsUp,
   Layers,
   Star,
-  GitCompare,
+  ClipboardCheck,
   Compass,
   Copy,
   Download,
@@ -57,17 +57,11 @@ const KINDS = {
     accent: "#d97706",
     sub: "Where to start + recommendations",
   },
-  qaReport: {
-    label: "QA Report",
-    icon: GitCompare,
-    accent: "#db2777",
-    sub: "Design vs build diff",
-  },
-  qaReportFull: {
-    label: "QA Report",
-    icon: GitCompare,
+  qaReview: {
+    label: "QA Review",
+    icon: ClipboardCheck,
     accent: "#9333ea",
-    sub: "Live audit vs design reference",
+    sub: "Design vs built — checkable issue log",
   },
   references: {
     label: "References",
@@ -146,8 +140,9 @@ export default function OutputNode({ id, data, selected }) {
         {kind === "actionPlan" && <ActionPlanBody result={result} />}
         {kind === "checklist" && <ChecklistBody result={result} />}
         {kind === "recommendations" && <RecommendationsBody result={result} />}
-        {kind === "qaReportFull" && <QaReportFullBody result={result} />}
-        {kind === "qaReport" && <QaReportBody result={result} />}
+        {kind === "qaReview" && (
+          <QaReviewBody nodeId={id} data={data} result={result} />
+        )}
         {kind === "references" && <ReferencesBody result={result} />}
       </div>
     </div>
@@ -157,6 +152,8 @@ export default function OutputNode({ id, data, selected }) {
 function mapLegacyKind(kind) {
   if (kind === "summary" || kind === "findings") return "overview";
   if (kind === "strengths" || kind === "nextSteps") return "actionPlan";
+  // Older canvases used the split QA outputs — show them in the unified card.
+  if (kind === "qaReport" || kind === "qaReportFull") return "qaReview";
   return kind;
 }
 
@@ -343,30 +340,83 @@ function RecommendationsBody({ result }) {
   );
 }
 
-function QaReportFullBody({ result }) {
+const CATEGORY_LABELS = {
+  spacing: "Spacing & Layout",
+  color: "Colour",
+  typography: "Typography",
+  states: "States",
+  components: "Components",
+  responsive: "Responsive",
+  copy: "Copy",
+  accessibility: "Accessibility",
+  // Legacy categories from older runs:
+  ui: "UI",
+  "design-system": "Design system",
+  responsiveness: "Responsive",
+};
+
+const COVERAGE_LABELS = {
+  ...CATEGORY_LABELS,
+  spacing: "Spacing",
+};
+
+const CATEGORY_ORDER = [
+  "spacing",
+  "color",
+  "typography",
+  "states",
+  "components",
+  "responsive",
+  "copy",
+  "accessibility",
+];
+
+function QaReviewBody({ nodeId, data, result }) {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const sum = result.summary ?? {};
-  const verdict = result.verdict ?? {};
+  const verdict = sum.verdict ?? result.verdict ?? {};
   const issues = result.issues ?? [];
   const cov = result.checkCoverage ?? {};
   const recs = result.recommendations ?? {};
+  const fixedSet = new Set(data.fixedIssues ?? []);
+  const fixedCount = issues.reduce(
+    (n, _, i) => (fixedSet.has(i) ? n + 1 : n),
+    0,
+  );
 
-  const verdictColor = {
-    ready: "#10b981",
-    conditional: "#d97706",
-    blocked: "#dc2626",
-  }[verdict.status] ?? "#64748b";
-  const verdictLabel = {
-    ready: "Ready",
-    conditional: "Conditional",
-    blocked: "Blocked",
-  }[verdict.status] ?? verdict.status;
+  const verdictColor =
+    {
+      ready: "#10b981",
+      conditional: "#d97706",
+      blocked: "#dc2626",
+    }[verdict.status] ?? "#64748b";
+  const verdictLabel =
+    {
+      ready: "Ready",
+      conditional: "Conditional",
+      blocked: "Blocked",
+    }[verdict.status] ?? verdict.status ?? "—";
+
+  function toggleFixed(idx) {
+    updateNodeData(nodeId, (prev) => {
+      const cur = new Set(prev.fixedIssues ?? []);
+      if (cur.has(idx)) cur.delete(idx);
+      else cur.add(idx);
+      return { ...prev, fixedIssues: [...cur].sort((a, b) => a - b) };
+    });
+  }
+  function clearAllFixed() {
+    updateNodeData(nodeId, (prev) => ({ ...prev, fixedIssues: [] }));
+  }
 
   return (
     <div className="space-y-4">
-      {result.url && (
-        <div className="text-[12px] text-ink-500 break-all">
-          <span className="text-ink-400">URL: </span>
-          <span className="font-mono text-ink-900">{result.url}</span>
+      {result.componentName && (
+        <div className="text-[12px] text-ink-500">
+          Component:{" "}
+          <span className="font-semibold text-ink-900">
+            {result.componentName}
+          </span>
         </div>
       )}
 
@@ -379,7 +429,8 @@ function QaReportFullBody({ result }) {
             {verdictLabel}
           </span>
           <span className="text-[12px] text-ink-500">
-            {sum.totalIssues ?? 0} issue{sum.totalIssues === 1 ? "" : "s"}
+            {sum.totalIssues ?? issues.length} issue
+            {(sum.totalIssues ?? issues.length) === 1 ? "" : "s"}
           </span>
         </div>
         <div className="flex gap-2 text-[11px] mb-2">
@@ -401,17 +452,38 @@ function QaReportFullBody({ result }) {
       </div>
 
       <div>
-        <SectionLabel icon={GitCompare} color="#9333ea" count={issues.length}>
-          Issue log
-        </SectionLabel>
+        <div className="flex items-center justify-between mb-2">
+          <SectionLabel
+            icon={ClipboardCheck}
+            color="#9333ea"
+            count={issues.length}
+          >
+            Issue log
+          </SectionLabel>
+          {issues.length > 0 && (
+            <div className="flex items-center gap-2 -mt-2">
+              <span className="text-[10px] text-ink-500 tabular-nums">
+                {fixedCount}/{issues.length} fixed
+              </span>
+              {fixedCount > 0 && (
+                <button
+                  onClick={clearAllFixed}
+                  className="text-[10px] text-ink-400 hover:text-ink-700 underline underline-offset-2"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         {issues.length === 0 ? (
           <div className="text-[11px] text-ink-400 italic">No issues found.</div>
         ) : (
-          <div className="space-y-2">
-            {issues.map((it, i) => (
-              <QaReportIssueRow key={i} index={i + 1} issue={it} />
-            ))}
-          </div>
+          <QaReviewIssueGroups
+            issues={issues}
+            fixedSet={fixedSet}
+            onToggle={toggleFixed}
+          />
         )}
       </div>
 
@@ -420,15 +492,26 @@ function QaReportFullBody({ result }) {
           Check coverage
         </SectionLabel>
         <div className="grid grid-cols-2 gap-1.5 text-[11px] text-ink-700">
-          <CoverageRow label="UI consistency" count={cov.ui} />
-          <CoverageRow label="Copy & typography" count={cov.copy} />
-          <CoverageRow label="Design system" count={cov.designSystem} />
-          <CoverageRow label="Accessibility" count={cov.accessibility} />
-          <CoverageRow label="Responsiveness" count={cov.responsiveness} />
+          {[
+            "spacing",
+            "color",
+            "typography",
+            "states",
+            "components",
+            "responsive",
+            "copy",
+            "accessibility",
+          ].map((key) => (
+            <CoverageRow
+              key={key}
+              label={COVERAGE_LABELS[key]}
+              count={cov[key]}
+            />
+          ))}
         </div>
       </div>
 
-      {(recs.doNow?.length || recs.thisSprint?.length || recs.backlog?.length) && (
+      {(recs.doNow?.length || recs.thisSprint?.length || recs.backlog?.length) ? (
         <div>
           <SectionLabel icon={Star} color="#d97706">
             Recommendations
@@ -449,23 +532,83 @@ function QaReportFullBody({ result }) {
             items={recs.backlog ?? []}
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function QaReportIssueRow({ index, issue }) {
-  const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
-  const catLabel = {
-    ui: "UI",
-    copy: "Copy",
-    "design-system": "Design system",
-    accessibility: "A11y",
-    responsiveness: "Responsive",
-  }[issue.category] ?? issue.category;
+function QaReviewIssueGroups({ issues, fixedSet, onToggle }) {
+  // Bucket issues by category, preserving the original index so checkbox
+  // state stays aligned with the model's flat array.
+  const byCategory = new Map();
+  issues.forEach((it, i) => {
+    const key = it.category ?? "other";
+    if (!byCategory.has(key)) byCategory.set(key, []);
+    byCategory.get(key).push({ issue: it, index: i });
+  });
+  // Render in canonical category order, then any unknown categories last.
+  const orderedKeys = [
+    ...CATEGORY_ORDER.filter((k) => byCategory.has(k)),
+    ...Array.from(byCategory.keys()).filter((k) => !CATEGORY_ORDER.includes(k)),
+  ];
+
   return (
-    <div className="rounded-lg border border-ink-200 p-2.5 bg-white text-[12px] text-ink-700 leading-snug">
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="space-y-3">
+      {orderedKeys.map((key) => {
+        const rows = byCategory.get(key);
+        return (
+          <div key={key}>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-pink-600">
+                {CATEGORY_LABELS[key] ?? key}
+              </span>
+              <span className="text-[10px] font-medium text-ink-500 bg-ink-100 rounded-full px-1.5 py-0.5">
+                {rows.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {rows.map(({ issue, index }) => (
+                <QaReviewIssueCard
+                  key={index}
+                  index={index + 1}
+                  issue={issue}
+                  fixed={fixedSet.has(index)}
+                  onToggle={() => onToggle(index)}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function QaReviewIssueCard({ index, issue, fixed, onToggle }) {
+  const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
+  return (
+    <div
+      className={`text-left rounded-lg border bg-white text-[12px] text-ink-700 leading-snug overflow-hidden transition ${
+        fixed
+          ? "border-emerald-200 bg-emerald-50/40 opacity-70"
+          : "border-ink-200"
+      }`}
+    >
+      <div className="px-2.5 pt-2 pb-1.5 flex items-center gap-1.5 border-b border-ink-100 bg-ink-50/50">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={fixed}
+          aria-label={fixed ? "Mark as not fixed" : "Mark as fixed"}
+          onClick={onToggle}
+          className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition ${
+            fixed
+              ? "bg-emerald-500 border-emerald-500 text-white"
+              : "bg-white border-ink-300 hover:border-ink-500"
+          }`}
+        >
+          {fixed && <Check size={11} strokeWidth={3} />}
+        </button>
         <span className="text-[10px] text-ink-400 font-mono">#{index}</span>
         <span
           className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
@@ -473,20 +616,55 @@ function QaReportIssueRow({ index, issue }) {
         >
           {sev.label}
         </span>
-        <span className="text-[10px] text-ink-500 uppercase tracking-wide">
-          {catLabel}
+        {issue.property && (
+          <code className="text-[11px] font-mono text-ink-700 bg-ink-100 rounded px-1.5 py-0.5">
+            {issue.property}
+          </code>
+        )}
+        {issue.location && (
+          <div className="text-[11px] text-ink-500 truncate flex-1 text-right">
+            {issue.location}
+          </div>
+        )}
+      </div>
+      {(issue.title ?? issue.name) && (
+        <div
+          className={`px-2.5 pt-2 font-medium text-ink-900 ${
+            fixed ? "line-through decoration-ink-400" : ""
+          }`}
+        >
+          {issue.title ?? issue.name}
+        </div>
+      )}
+      <div className="grid grid-cols-2 divide-x divide-ink-100 mt-1.5">
+        <DiffCell label="Design" value={issue.designed} tone="design" />
+        <DiffCell label="Built" value={issue.built} tone="built" />
+      </div>
+      {(issue.fix ?? issue.recommendation) && (
+        <div className="px-2.5 py-1.5 border-t border-ink-100 text-[11px] text-ink-600 bg-white">
+          <span className="text-ink-500">Fix: </span>
+          {issue.fix ?? issue.recommendation}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiffCell({ label, value, tone }) {
+  const dot = tone === "design" ? "#10b981" : "#dc2626";
+  return (
+    <div className="px-2.5 py-2">
+      <div className="flex items-center gap-1.5 mb-1">
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ background: dot }}
+        />
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+          {label}
         </span>
       </div>
-      <div className="font-medium text-ink-900 mb-1">{issue.name}</div>
-      <div className="space-y-1">
-        <div>
-          <span className="text-ink-500">What: </span>
-          {issue.description}
-        </div>
-        <div>
-          <span className="text-ink-500">Fix: </span>
-          {issue.recommendation}
-        </div>
+      <div className="text-[12px] text-ink-900 leading-snug break-words">
+        {value ?? "—"}
       </div>
     </div>
   );
@@ -507,154 +685,22 @@ function RecommendationGroup({ label, color, items }) {
   if (!items?.length) return null;
   return (
     <div className="mb-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color }}>
+      <div
+        className="text-[10px] font-semibold uppercase tracking-wide mb-1"
+        style={{ color }}
+      >
         {label}
       </div>
       <ul className="space-y-1 text-[12px] text-ink-700">
         {items.map((s, i) => (
           <li key={i} className="flex gap-2">
-            <span style={{ color }} className="shrink-0">•</span>
+            <span style={{ color }} className="shrink-0">
+              •
+            </span>
             {s}
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function QaReportBody({ result }) {
-  const sections = result.sections ?? [];
-  const sum = result.summary ?? {};
-  const actionLabel = {
-    pass: "Pass",
-    "fix-and-requa": "Fix & Re-QA",
-    "needs-design-clarification": "Needs design clarification",
-  }[sum.recommendedAction] ?? sum.recommendedAction;
-  const actionColor = {
-    pass: "#10b981",
-    "fix-and-requa": "#dc2626",
-    "needs-design-clarification": "#d97706",
-  }[sum.recommendedAction] ?? "#64748b";
-
-  return (
-    <div className="space-y-4">
-      {result.componentName && (
-        <div className="text-[12px] text-ink-500">
-          Component:{" "}
-          <span className="font-semibold text-ink-900">
-            {result.componentName}
-          </span>
-        </div>
-      )}
-      {sum.recommendedAction && (
-        <div className="rounded-lg border border-ink-200 p-3 bg-white">
-          <div className="flex items-center gap-2 mb-2">
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-white"
-              style={{ background: actionColor }}
-            >
-              {actionLabel}
-            </span>
-            <span className="text-[12px] text-ink-500">
-              {sum.totalIssues ?? 0} issue{sum.totalIssues === 1 ? "" : "s"}
-            </span>
-          </div>
-          <div className="flex gap-2 text-[11px]">
-            <Pill color="#dc2626" bg="#fef2f2">
-              {sum.highSeverity ?? 0} high
-            </Pill>
-            <Pill color="#ea580c" bg="#fff7ed">
-              {sum.mediumSeverity ?? 0} medium
-            </Pill>
-            <Pill color="#ca8a04" bg="#fefce8">
-              {sum.lowSeverity ?? 0} low
-            </Pill>
-          </div>
-        </div>
-      )}
-      {sections.map((s, i) => (
-        <QaSection key={i} section={s} />
-      ))}
-    </div>
-  );
-}
-
-function QaSection({ section }) {
-  const issues = section.issues ?? [];
-  if (issues.length === 0) {
-    return (
-      <div>
-        <SectionLabel icon={GitCompare} color="#db2777" count={0}>
-          {section.title}
-        </SectionLabel>
-        <div className="text-[11px] text-ink-400 italic pl-1">
-          No issues found.
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div>
-      <SectionLabel icon={GitCompare} color="#db2777" count={issues.length}>
-        {section.title}
-      </SectionLabel>
-      <div className="space-y-2">
-        {issues.map((it, i) => (
-          <QaIssueCard key={i} issue={it} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function QaIssueCard({ issue }) {
-  const sev = SEVERITY[issue.severity] ?? {
-    label: "Info",
-    color: "#0284c7",
-    bg: "#f0f9ff",
-  };
-  return (
-    <div className="text-left rounded-lg border border-ink-200 bg-white text-[12px] text-ink-700 leading-snug overflow-hidden">
-      <div className="px-2.5 pt-2 pb-1.5 flex items-center gap-1.5 border-b border-ink-100 bg-ink-50/50">
-        <span
-          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
-          style={{ background: sev.bg, color: sev.color }}
-        >
-          {sev.label}
-        </span>
-        {issue.property && (
-          <code className="text-[11px] font-mono text-ink-700 bg-ink-100 rounded px-1.5 py-0.5">
-            {issue.property}
-          </code>
-        )}
-        <div className="text-[11px] text-ink-500 truncate flex-1 text-right">
-          {issue.location}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 divide-x divide-ink-100">
-        <DiffCell label="Design" value={issue.designed} tone="design" />
-        <DiffCell label="Built" value={issue.built} tone="built" />
-      </div>
-    </div>
-  );
-}
-
-function DiffCell({ label, value, tone }) {
-  const dot = tone === "design" ? "#10b981" : "#dc2626";
-  return (
-    <div className="px-2.5 py-2">
-      <div className="flex items-center gap-1.5 mb-1">
-        <span
-          className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: dot }}
-        />
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
-          {label}
-        </span>
-      </div>
-      <div className="text-[12px] text-ink-900 leading-snug break-words">
-        {value}
-      </div>
     </div>
   );
 }

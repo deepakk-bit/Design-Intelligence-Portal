@@ -136,6 +136,15 @@ export default function AgentNode({ id, data, selected }) {
       if (res?.usage) recordUsage(res.usage, def.id, res?.model);
 
       const r = res?.result ?? {};
+      // The unified QA Review result has both `issues[]` and `checkCoverage`.
+      // Detect it first so it doesn't get matched by the more generic
+      // "checklist" / "recommendations" kinds below (which key off `sections`
+      // and `recommendations` arrays).
+      const isQaReview =
+        Array.isArray(r.issues) &&
+        !!r.checkCoverage &&
+        r.recommendations &&
+        !Array.isArray(r.recommendations);
       const kinds = [
         {
           kind: "overview",
@@ -146,20 +155,22 @@ export default function AgentNode({ id, data, selected }) {
           kind: "actionPlan",
           has: (r.strengths?.length ?? 0) > 0 || (r.nextSteps?.length ?? 0) > 0,
         },
-        { kind: "checklist", has: (r.sections?.length ?? 0) > 0 && !r.summary?.recommendedAction },
+        {
+          kind: "checklist",
+          has: !isQaReview && (r.sections?.length ?? 0) > 0,
+        },
         {
           kind: "recommendations",
           has:
-            (r.recommendations?.length ?? 0) > 0 ||
-            (r.priorityOrder?.length ?? 0) > 0,
+            !isQaReview &&
+            (Array.isArray(r.recommendations)
+              ? r.recommendations.length > 0
+              : false ||
+                (r.priorityOrder?.length ?? 0) > 0),
         },
         {
-          kind: "qaReport",
-          has: !!r.summary?.recommendedAction && (r.sections?.length ?? 0) > 0,
-        },
-        {
-          kind: "qaReportFull",
-          has: !!r.verdict && Array.isArray(r.issues) && !!r.checkCoverage,
+          kind: "qaReview",
+          has: isQaReview,
         },
         {
           kind: "references",

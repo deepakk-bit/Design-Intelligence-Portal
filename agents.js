@@ -193,76 +193,21 @@ const statesVariantsSchema = {
   },
 };
 
-const qaComparisonSchema = {
+const qaReviewSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["componentName", "sections", "summary"],
+  required: [
+    "componentName",
+    "summary",
+    "issues",
+    "checkCoverage",
+    "recommendations",
+  ],
   properties: {
     componentName: {
       type: "string",
       description:
         "Short label for what was QA'd, inferred from the screenshots or context.",
-    },
-    sections: {
-      type: "array",
-      description:
-        "All seven sections in this exact order: spacing, color, typography, states, components, responsive, clarification. Empty issues[] if no findings.",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "title", "issues"],
-        properties: {
-          id: {
-            type: "string",
-            enum: [
-              "spacing",
-              "color",
-              "typography",
-              "states",
-              "components",
-              "responsive",
-              "clarification",
-            ],
-          },
-          title: { type: "string" },
-          issues: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["location", "property", "designed", "built", "severity"],
-              properties: {
-                location: {
-                  type: "string",
-                  description:
-                    "Which element and where, e.g. 'Primary CTA button, top-right of header'.",
-                },
-                property: {
-                  type: "string",
-                  description:
-                    "The specific property that differs. Use the most precise label that fits, e.g. 'font-size', 'font-weight', 'line-height', 'padding-left', 'gap', 'background-color', 'border-radius', 'border-width', 'icon', 'label-text', 'shadow', 'opacity', 'alignment'. For state/component sections use a short noun like 'hover state', 'icon' or 'variant'. For clarification items use 'design intent'.",
-                },
-                designed: {
-                  type: "string",
-                  description:
-                    "Concrete designed value for that property, e.g. '16px', '600 (semibold)', '#0F172A', 'present', 'left-aligned', 'check icon (lucide)'. Be specific. If exact pixels are unreadable, give a clear relative value like '~16px' or 'larger'.",
-                },
-                built: {
-                  type: "string",
-                  description:
-                    "Concrete built value for that property, parallel format to `designed`. e.g. '14px', '500 (medium)', '#1E293B', 'missing', 'centered'.",
-                },
-                severity: {
-                  type: "string",
-                  enum: ["high", "medium", "low", "info"],
-                  description:
-                    "Use 'info' only for clarification-section items; otherwise high/medium/low.",
-                },
-              },
-            },
-          },
-        },
-      },
     },
     summary: {
       type: "object",
@@ -272,19 +217,144 @@ const qaComparisonSchema = {
         "highSeverity",
         "mediumSeverity",
         "lowSeverity",
-        "recommendedAction",
+        "verdict",
       ],
       properties: {
-        totalIssues: {
-          type: "integer",
-          description: "Count of high + medium + low issues. Excludes info/clarification.",
-        },
+        totalIssues: { type: "integer" },
         highSeverity: { type: "integer" },
         mediumSeverity: { type: "integer" },
         lowSeverity: { type: "integer" },
-        recommendedAction: {
-          type: "string",
-          enum: ["pass", "fix-and-requa", "needs-design-clarification"],
+        verdict: {
+          type: "object",
+          additionalProperties: false,
+          required: ["status", "reason"],
+          properties: {
+            status: {
+              type: "string",
+              enum: ["ready", "conditional", "blocked"],
+            },
+            reason: {
+              type: "string",
+              description:
+                "1–2 sentences stating which issues drive the verdict, citing them by title.",
+            },
+          },
+        },
+      },
+    },
+    issues: {
+      type: "array",
+      description:
+        "Flat list of findings, sorted high → medium → low. Each row is rendered as a checkbox in the UI; keep it concise — no long descriptions.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "title",
+          "severity",
+          "category",
+          "location",
+          "property",
+          "designed",
+          "built",
+          "fix",
+        ],
+        properties: {
+          title: {
+            type: "string",
+            description:
+              "Short scannable label, 3–7 words. e.g. 'CTA padding too tight'.",
+          },
+          severity: {
+            type: "string",
+            enum: ["high", "medium", "low"],
+          },
+          category: {
+            type: "string",
+            enum: [
+              "spacing",
+              "color",
+              "typography",
+              "states",
+              "components",
+              "responsive",
+              "copy",
+              "accessibility",
+            ],
+          },
+          location: {
+            type: "string",
+            description:
+              "Short element + where, e.g. 'Primary CTA, header right'.",
+          },
+          property: {
+            type: "string",
+            description:
+              "The precise property that differs, e.g. 'padding-x', 'background-color', 'font-weight', 'hover state', 'variant', 'label-text'.",
+          },
+          designed: {
+            type: "string",
+            description:
+              "Concrete designed value. e.g. '16px', '600 (semibold)', '#0F172A', 'present'. If exact value is unreadable, give a clear relative value like '~16px'.",
+          },
+          built: {
+            type: "string",
+            description:
+              "Concrete built value, parallel format to `designed`. e.g. '8px', 'missing', 'centered'.",
+          },
+          fix: {
+            type: "string",
+            description:
+              "One-sentence actionable change a developer can apply.",
+          },
+        },
+      },
+    },
+    checkCoverage: {
+      type: "object",
+      description:
+        "Counts of issues per category. Must include all eight keys, even with 0.",
+      additionalProperties: false,
+      required: [
+        "spacing",
+        "color",
+        "typography",
+        "states",
+        "components",
+        "responsive",
+        "copy",
+        "accessibility",
+      ],
+      properties: {
+        spacing: { type: "integer" },
+        color: { type: "integer" },
+        typography: { type: "integer" },
+        states: { type: "integer" },
+        components: { type: "integer" },
+        responsive: { type: "integer" },
+        copy: { type: "integer" },
+        accessibility: { type: "integer" },
+      },
+    },
+    recommendations: {
+      type: "object",
+      additionalProperties: false,
+      required: ["doNow", "thisSprint", "backlog"],
+      properties: {
+        doNow: {
+          type: "array",
+          description: "High-severity action items, phrased as imperatives.",
+          items: { type: "string" },
+        },
+        thisSprint: {
+          type: "array",
+          description: "Medium-severity action items.",
+          items: { type: "string" },
+        },
+        backlog: {
+          type: "array",
+          description: "Low-severity action items.",
+          items: { type: "string" },
         },
       },
     },
@@ -346,130 +416,11 @@ export const AGENTS = {
     userInstruction:
       "Extract the best Refero search query, queryType, and platform for what the user is designing. Output the JSON object only — no prose.",
   },
-  "qa-report": {
-    id: "qa-report",
-    name: "QA Report",
-    // Tool-driven pipeline: server captures a live screenshot of the URL and
-    // pulls an HTML digest, then asks the model to QA against the design ref.
-    kind: "qa-report",
-    inputs: ["image", "text"],
-    inputsRequireAll: ["image", "text"],
-    textInputKind: "url",
-    systemPrompt: readPrompt("qa-report.md"),
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "url",
-        "summary",
-        "verdict",
-        "issues",
-        "checkCoverage",
-        "recommendations",
-      ],
-      properties: {
-        url: { type: "string" },
-        summary: {
-          type: "object",
-          additionalProperties: false,
-          required: [
-            "totalIssues",
-            "highSeverity",
-            "mediumSeverity",
-            "lowSeverity",
-          ],
-          properties: {
-            totalIssues: { type: "integer" },
-            highSeverity: { type: "integer" },
-            mediumSeverity: { type: "integer" },
-            lowSeverity: { type: "integer" },
-          },
-        },
-        verdict: {
-          type: "object",
-          additionalProperties: false,
-          required: ["status", "reason"],
-          properties: {
-            status: {
-              type: "string",
-              enum: ["ready", "conditional", "blocked"],
-            },
-            reason: { type: "string" },
-          },
-        },
-        issues: {
-          type: "array",
-          description:
-            "Sorted: all high first, then medium, then low. One row per finding.",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "name",
-              "severity",
-              "category",
-              "description",
-              "recommendation",
-            ],
-            properties: {
-              name: { type: "string" },
-              severity: {
-                type: "string",
-                enum: ["high", "medium", "low"],
-              },
-              category: {
-                type: "string",
-                enum: [
-                  "ui",
-                  "copy",
-                  "design-system",
-                  "accessibility",
-                  "responsiveness",
-                ],
-              },
-              description: { type: "string" },
-              recommendation: { type: "string" },
-            },
-          },
-        },
-        checkCoverage: {
-          type: "object",
-          additionalProperties: false,
-          required: [
-            "ui",
-            "copy",
-            "designSystem",
-            "accessibility",
-            "responsiveness",
-          ],
-          properties: {
-            ui: { type: "integer" },
-            copy: { type: "integer" },
-            designSystem: { type: "integer" },
-            accessibility: { type: "integer" },
-            responsiveness: { type: "integer" },
-          },
-        },
-        recommendations: {
-          type: "object",
-          additionalProperties: false,
-          required: ["doNow", "thisSprint", "backlog"],
-          properties: {
-            doNow: { type: "array", items: { type: "string" } },
-            thisSprint: { type: "array", items: { type: "string" } },
-            backlog: { type: "array", items: { type: "string" } },
-          },
-        },
-      },
-    },
-    userInstruction:
-      "Compare the live screenshot (image 2) against the design reference (image 1). Use the page digest below for accessibility and copy checks. Output the JSON QA report only — no prose.",
-  },
-  "qa-comparison": {
-    id: "qa-comparison",
-    name: "QA Comparison",
-    // Multi-image agent: declares ordered named slots so the API and UI can
-    // render multiple dropzones and forward each image to the model in order.
+  "qa-review": {
+    id: "qa-review",
+    name: "QA Review",
+    // Multi-image agent: design vs built comparison with a unified report
+    // (summary + concise issue log + check coverage + recommendations).
     imageSlots: [
       {
         key: "designImage",
@@ -482,10 +433,10 @@ export const AGENTS = {
         help: "Screenshot of the implemented UI.",
       },
     ],
-    systemPrompt: readPrompt("qa-comparison.md"),
-    schema: qaComparisonSchema,
+    systemPrompt: readPrompt("qa-review.md"),
+    schema: qaReviewSchema,
     userInstruction:
-      "Compare the design (image 1) with the built implementation (image 2). Produce the structured QA report. Output the JSON object only — no prose.",
+      "Compare the design (image 1) with the built implementation (image 2). Produce the unified QA review JSON only — no prose.",
   },
 };
 
