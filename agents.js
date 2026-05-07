@@ -278,7 +278,6 @@ const qaReviewSchema = {
               "states",
               "components",
               "responsive",
-              "copy",
               "accessibility",
             ],
           },
@@ -313,7 +312,7 @@ const qaReviewSchema = {
     checkCoverage: {
       type: "object",
       description:
-        "Counts of issues per category. Must include all eight keys, even with 0.",
+        "Counts of issues per category. Must include all seven keys, even with 0.",
       additionalProperties: false,
       required: [
         "spacing",
@@ -322,7 +321,6 @@ const qaReviewSchema = {
         "states",
         "components",
         "responsive",
-        "copy",
         "accessibility",
       ],
       properties: {
@@ -332,7 +330,6 @@ const qaReviewSchema = {
         states: { type: "integer" },
         components: { type: "integer" },
         responsive: { type: "integer" },
-        copy: { type: "integer" },
         accessibility: { type: "integer" },
       },
     },

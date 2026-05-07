@@ -347,9 +347,9 @@ const CATEGORY_LABELS = {
   states: "States",
   components: "Components",
   responsive: "Responsive",
-  copy: "Copy",
   accessibility: "Accessibility",
   // Legacy categories from older runs:
+  copy: "Copy",
   ui: "UI",
   "design-system": "Design system",
   responsiveness: "Responsive",
@@ -367,7 +367,6 @@ const CATEGORY_ORDER = [
   "states",
   "components",
   "responsive",
-  "copy",
   "accessibility",
 ];
 
@@ -499,7 +498,6 @@ function QaReviewBody({ nodeId, data, result }) {
             "states",
             "components",
             "responsive",
-            "copy",
             "accessibility",
           ].map((key) => (
             <CoverageRow
