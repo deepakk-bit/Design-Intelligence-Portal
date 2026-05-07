@@ -1,6 +1,15 @@
-import { useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Handle, Position } from "@xyflow/react";
-import { ImagePlus, Play, Loader2, Trash2, X } from "lucide-react";
+import {
+  ImagePlus,
+  Play,
+  Loader2,
+  Trash2,
+  X,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { nanoid } from "nanoid";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -128,6 +137,14 @@ export default function AgentNode({ id, data, selected }) {
             ? data.componentName.trim()
             : undefined,
         context: data.context?.trim() || undefined,
+        extras: def.extras
+          ? Object.fromEntries(
+              def.extras.map((ex) => [
+                ex.key,
+                data.extras?.[ex.key] ?? ex.default,
+              ]),
+            )
+          : undefined,
       });
       updateNodeData(id, { status: "done", result: res });
       // Roll up tokens onto the workspace accumulator. Reruns of the same
@@ -158,6 +175,20 @@ export default function AgentNode({ id, data, selected }) {
         {
           kind: "checklist",
           has: !isQaReview && (r.sections?.length ?? 0) > 0,
+        },
+        {
+          kind: "previews",
+          // Spawn the matrix preview card whenever the agent produced a
+          // matrix spec (rowGroups × rowSubItems × columns). The SVG is
+          // composed deterministically by the frontend from those tokens.
+          has:
+            !isQaReview &&
+            !!r.matrix &&
+            Array.isArray(r.matrix.rowGroups) &&
+            Array.isArray(r.matrix.rowSubItems) &&
+            Array.isArray(r.matrix.columns) &&
+            r.matrix.rowGroups.length > 0 &&
+            r.matrix.columns.length > 0,
         },
         {
           kind: "recommendations",
@@ -316,6 +347,26 @@ export default function AgentNode({ id, data, selected }) {
           </div>
         )}
 
+        {def.extras?.map((ex) => (
+          <div key={ex.key}>
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
+              {ex.label}
+            </label>
+            {ex.type === "select" ? (
+              <Select
+                value={data.extras?.[ex.key] ?? ex.default}
+                options={ex.options}
+                onChange={(v) =>
+                  updateNodeData(id, (prev) => ({
+                    ...prev,
+                    extras: { ...(prev.extras ?? {}), [ex.key]: v },
+                  }))
+                }
+              />
+            ) : null}
+          </div>
+        ))}
+
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
             Context (optional)
@@ -468,5 +519,134 @@ function SingleImage({ image, onPick, onClear }) {
         onChange={(e) => onPick(e.target.files?.[0])}
       />
     </>
+  );
+}
+
+// Lightweight, design-system-matching select. Native <select> on macOS /
+// Windows pulls in browser chrome that looks alien next to our rounded
+// `bg-ink-50` inputs, so we render a styled trigger + a small floating
+// menu. Outside-click and Escape close the menu; Enter / Space toggles it.
+function Select({ value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [menuRect, setMenuRect] = useState(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const current =
+    options.find((o) => o.value === value) ?? options[0] ?? null;
+
+  // Position the floating menu under the trigger and track its rect so
+  // the portal stays anchored across canvas pans / scrolls. Escape and
+  // outside-click both dismiss.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      setMenuRect({ left: r.left, top: r.bottom + 4, width: r.width });
+    }
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e) {
+      if (
+        triggerRef.current?.contains(e.target) ||
+        menuRef.current?.contains(e.target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="nodrag relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 text-left flex items-center justify-between gap-2 outline-none transition ${
+          open
+            ? "ring-2 ring-brand-500/40"
+            : "hover:bg-ink-100 focus-visible:ring-2 focus-visible:ring-brand-500/40"
+        }`}
+      >
+        <span className="truncate text-ink-900">
+          {current?.label ?? "Select…"}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-ink-500 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open &&
+        menuRect &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="listbox"
+            style={{
+              position: "fixed",
+              left: menuRect.left,
+              top: menuRect.top,
+              width: menuRect.width,
+            }}
+            className="z-[60] bg-white rounded-lg border border-ink-200 shadow-floating overflow-hidden py-1"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {options.map((opt) => {
+              const selected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left text-[13px] px-2.5 py-1.5 flex items-center justify-between gap-2 transition ${
+                    selected
+                      ? "text-ink-900 font-medium bg-brand-500/5"
+                      : "text-ink-700 hover:bg-ink-50"
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {selected && (
+                    <Check size={12} className="text-brand-600 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 }

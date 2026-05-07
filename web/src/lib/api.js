@@ -6,11 +6,19 @@ export async function runAgent({
   images,
   context,
   componentName,
+  extras,
 }) {
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agentId, image, images, context, componentName }),
+    body: JSON.stringify({
+      agentId,
+      image,
+      images,
+      context,
+      componentName,
+      extras,
+    }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {

@@ -37,10 +37,24 @@ export const AGENT_CATEGORIES = [
         id: "states-variants",
         name: "States & Variants Generator",
         description:
-          "Given a component name, lists every state and variant to design before handoff.",
+          "Given a component name, lists every state and variant to design — and renders each as an SVG preview in your chosen library style, ready to drag into Figma.",
         icon: Layers,
         accent: "#2563eb",
         inputs: ["text"],
+        extras: [
+          {
+            key: "library",
+            label: "Library style",
+            type: "select",
+            default: "shadcn",
+            options: [
+              { value: "shadcn", label: "shadcn/ui" },
+              { value: "material", label: "Material" },
+              { value: "radix", label: "Radix" },
+              { value: "tailwind", label: "Tailwind base" },
+            ],
+          },
+        ],
       },
     ],
   },

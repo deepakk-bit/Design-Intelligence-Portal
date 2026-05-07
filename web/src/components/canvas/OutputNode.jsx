@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Trash2,
@@ -62,6 +62,12 @@ const KINDS = {
     icon: ClipboardCheck,
     accent: "#9333ea",
     sub: "Design vs built — checkable issue log",
+  },
+  previews: {
+    label: "Component Matrix",
+    icon: Layers,
+    accent: "#1d4ed8",
+    sub: "React + Tailwind code, ready for Figma",
   },
   references: {
     label: "References",
@@ -143,6 +149,7 @@ export default function OutputNode({ id, data, selected }) {
         {kind === "qaReview" && (
           <QaReviewBody nodeId={id} data={data} result={result} />
         )}
+        {kind === "previews" && <PreviewsBody result={result} />}
         {kind === "references" && <ReferencesBody result={result} />}
       </div>
     </div>
@@ -712,6 +719,696 @@ function Pill({ color, bg, children }) {
       {children}
     </span>
   );
+}
+
+// State Previews body. Renders the agent's component matrix
+// (rowGroups × rowSubItems × columns) as a single Figma-importable SVG
+// composed from design tokens — variant fills, size paddings, state
+// modifiers — exactly like the structured component-documentation page
+// the user pasted as the spec.
+function PreviewsBody({ result }) {
+  const componentName = result.componentName ?? "Component";
+  const library = result.library ?? "shadcn";
+  const matrix = result.matrix;
+
+  const hasMatrix =
+    !!matrix &&
+    Array.isArray(matrix.rowGroups) &&
+    Array.isArray(matrix.rowSubItems) &&
+    Array.isArray(matrix.columns);
+
+  if (!hasMatrix) {
+    return (
+      <div className="text-[12px] text-ink-400 italic">
+        No matrix produced for this run.
+      </div>
+    );
+  }
+
+  const totalCells =
+    matrix.rowGroups.length *
+      matrix.rowSubItems.length *
+      matrix.columns.length -
+    (matrix.skipCells?.length ?? 0);
+
+  // Two artifacts share the same matrix tokens:
+  //   - HTML drives the in-canvas iframe preview (so what you see is a
+  //     faithful render of what the plugin will produce).
+  //   - JSX/Tailwind is what the user actually copies — it's the format
+  //     "React (Tailwind) to Design" expects.
+  const html = hasMatrix
+    ? buildComponentMatrixHtml(matrix, componentName, library)
+    : "";
+  const jsx = hasMatrix
+    ? buildComponentMatrixJsx(matrix, componentName, library)
+    : "";
+
+  const [copied, setCopied] = useState(false);
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(jsx);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+
+  const srcDoc = html;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[12px] text-ink-500">
+            <span className="font-semibold text-ink-900">{componentName}</span>
+            <span className="mx-1.5">·</span>
+            <span className="font-mono text-[11px] bg-ink-100 rounded px-1.5 py-0.5">
+              {library}
+            </span>
+            <span className="ml-2 text-[11px] text-ink-500">
+              {totalCells} cell{totalCells === 1 ? "" : "s"} ·{" "}
+              {matrix.rowGroups.length}×{matrix.rowSubItems.length}×
+              {matrix.columns.length}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={copyCode}
+          title="Copy React + Tailwind code"
+          className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded px-2.5 py-1.5 shrink-0 transition ${
+            copied
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              : "bg-brand-500 hover:bg-brand-600 text-white"
+          }`}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "Copied" : "Copy code"}
+        </button>
+      </div>
+
+      <p className="text-[11px] text-ink-500 leading-snug">
+        Open the{" "}
+        <span className="font-medium text-ink-900">
+          React (Tailwind) to Design
+        </span>{" "}
+        plugin in Figma and paste — every variant × size × state lands as
+        a named frame.
+      </p>
+
+      <MatrixPreview srcDoc={srcDoc} title={`${componentName} matrix`} />
+    </div>
+  );
+}
+
+function MatrixPreview({ srcDoc, title }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title="Click to open at full size"
+        className="block w-full text-left rounded-lg border border-ink-200 bg-ink-50 overflow-hidden hover:border-brand-400 transition cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      >
+        <iframe
+          title={title}
+          sandbox=""
+          srcDoc={srcDoc}
+          className="w-full border-0 block pointer-events-none"
+          style={{ height: 540 }}
+        />
+      </button>
+      {open && (
+        <MatrixLightbox srcDoc={srcDoc} title={title} onClose={() => setOpen(false)} />
+      )}
+    </>
+  );
+}
+
+function MatrixLightbox({ srcDoc, title, onClose }) {
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 nodrag nowheel"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-[1280px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        style={{ height: "calc(100vh - 48px)" }}
+      >
+        <div className="flex items-center px-4 py-2.5 border-b border-ink-100 shrink-0">
+          <div className="text-sm font-semibold text-ink-900 truncate flex-1">
+            {title}
+          </div>
+          <button
+            onClick={onClose}
+            title="Close (Esc)"
+            className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <iframe
+          title={title}
+          sandbox=""
+          srcDoc={srcDoc}
+          className="flex-1 w-full border-0 bg-ink-50 min-h-0"
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// --- SVG helpers ---------------------------------------------------------
+
+function escapeXml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function slugify(s) {
+  return String(s ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "untitled";
+}
+
+function escapeAttr(s) {
+  return escapeXml(s);
+}
+
+// Linearly darken a #rgb / #rrggbb hex by `amount` (0–1). Returns null
+// for null input — null bg means "transparent" (Ghost / Link variants),
+// and a darkened transparent is still transparent.
+function darkenHex(hex, amount) {
+  if (!hex) return null;
+  const m = /^#?([\da-f]{3}|[\da-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  let s = m[1];
+  if (s.length === 3) s = s.split("").map((c) => c + c).join("");
+  const r = Math.max(0, Math.round(parseInt(s.slice(0, 2), 16) * (1 - amount)));
+  const g = Math.max(0, Math.round(parseInt(s.slice(2, 4), 16) * (1 - amount)));
+  const b = Math.max(0, Math.round(parseInt(s.slice(4, 6), 16) * (1 - amount)));
+  return (
+    "#" +
+    [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")
+  );
+}
+
+
+// Render a single cell as an HTML fragment positioned by CSS grid. The
+// returned string is dropped into the cell <div> in `buildComponentMatrixHtml`.
+function renderArchetypeCellHtml({
+  archetype,
+  variantTokens,
+  sizeTokens,
+  modifier,
+  label,
+  glyph,
+}) {
+  const v = variantTokens ?? {};
+  const s = sizeTokens ?? {};
+  const height = s.height ?? 36;
+  const paddingX = s.paddingX ?? 16;
+  const fontSize = s.fontSize ?? 13;
+  const fontWeight = s.fontWeight ?? 500;
+  const radius = s.radius ?? 6;
+  const iconOnly = !!s.iconOnly;
+  const iconSize = s.iconSize ?? Math.max(12, fontSize + 1);
+  const textColor = v.text ?? "#0f172a";
+  const underline = !!v.underline;
+
+  // Effective fill for the requested state modifier.
+  let fill = v.bg ?? null;
+  if (modifier === "hover")
+    fill = v.bgHover ?? darkenHex(v.bg, 0.08) ?? v.bg ?? null;
+  else if (modifier === "pressed")
+    fill = v.bgPressed ?? darkenHex(v.bg, 0.16) ?? v.bg ?? null;
+  const border = v.border ?? null;
+  const opacity =
+    modifier === "disabled" ? 0.5 : modifier === "loading" ? 0.85 : 1;
+
+  const isIcon = archetype === "iconButton" || iconOnly;
+  const isLink = archetype === "link";
+
+  const styles = [];
+  if (!isLink) {
+    styles.push(`height:${height}px`);
+    if (isIcon) {
+      styles.push(`width:${height}px`);
+      styles.push(`padding:0`);
+    } else {
+      styles.push(`padding:0 ${paddingX}px`);
+    }
+    styles.push(`border-radius:${radius}px`);
+    styles.push(`background:${fill ?? "transparent"}`);
+    if (border) styles.push(`border:1px solid ${border}`);
+    else styles.push(`border:none`);
+    styles.push(`color:${textColor}`);
+    styles.push(`font-size:${fontSize}px`);
+    styles.push(`font-weight:${fontWeight}`);
+    styles.push(`font-family:inherit`);
+    styles.push(`cursor:${modifier === "disabled" ? "not-allowed" : "pointer"}`);
+    styles.push(`display:inline-flex`);
+    styles.push(`align-items:center`);
+    styles.push(`justify-content:center`);
+    styles.push(`gap:6px`);
+    styles.push(`opacity:${opacity}`);
+    if (modifier === "focus") {
+      const ringColor = v.bg ?? v.border ?? "#3b82f6";
+      styles.push(`outline:2px solid ${ringColor}`);
+      styles.push(`outline-offset:2px`);
+    }
+  } else {
+    // Link archetype — text-only, no background.
+    styles.push(`color:${textColor}`);
+    styles.push(`font-size:${fontSize}px`);
+    styles.push(`font-weight:${fontWeight}`);
+    styles.push(`text-decoration:${underline || modifier === "hover" ? "underline" : "none"}`);
+    styles.push(`opacity:${opacity}`);
+    styles.push(`cursor:${modifier === "disabled" ? "not-allowed" : "pointer"}`);
+    if (modifier === "focus") {
+      styles.push(`outline:2px solid ${textColor}`);
+      styles.push(`outline-offset:2px`);
+      styles.push(`border-radius:2px`);
+    }
+  }
+
+  const tag = isLink ? "a" : "button";
+  const extraAttrs = [];
+  if (modifier === "disabled" && !isLink) extraAttrs.push("disabled");
+  if (isLink) extraAttrs.push(`href="#"`, `onclick="return false"`);
+  const styleAttr = ` style="${styles.join(";")}"`;
+  const attrs = `${extraAttrs.join(" ")}${styleAttr}`;
+
+  // Inner content.
+  let inner;
+  if (isIcon) {
+    inner = inlineGlyphSvg(glyph || "circle", iconSize, textColor);
+  } else if (modifier === "loading") {
+    inner = `${inlineSpinnerSvg(iconSize, textColor)}<span>${escapeXml(label)}</span>`;
+  } else {
+    const decoration =
+      underline && !isLink ? ' style="text-decoration:underline"' : "";
+    inner = `<span${decoration}>${escapeXml(label)}</span>`;
+  }
+
+  return `<${tag} ${attrs}>${inner}</${tag}>`;
+}
+
+// Inline SVG glyph used for iconOnly cells. The outer wrapper sets the
+// pixel size; the inner viewBox is normalized so colour is taken from
+// `currentColor` whenever convenient.
+function inlineGlyphSvg(name, size, color) {
+  const c = escapeAttr(color);
+  switch (name) {
+    case "plus":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="8" x2="13" y2="8"/><line x1="8" y1="3" x2="8" y2="13"/></svg>`;
+    case "search":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4"/><line x1="10" y1="10" x2="13" y2="13"/></svg>`;
+    case "check":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg>`;
+    case "arrow":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/></svg>`;
+    case "user":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M3 14 Q 8 10 13 14"/></svg>`;
+    case "settings":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1 L8 3 M8 13 L8 15 M1 8 L3 8 M13 8 L15 8 M3 3 L4.5 4.5 M11.5 11.5 L13 13 M3 13 L4.5 11.5 M11.5 4.5 L13 3"/></svg>`;
+    case "chevronDown":
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round"><polyline points="4,6 8,11 12,6"/></svg>`;
+    case "circle":
+    default:
+      return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.5"><circle cx="8" cy="8" r="6"/></svg>`;
+  }
+}
+
+// CSS-animated spinner so the loading state actually spins in the
+// preview (Figma flattens this on import — fine, the still frame still
+// reads as "loading").
+function inlineSpinnerSvg(size, color) {
+  return `<svg class="dip-spinner" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="${escapeAttr(color)}" stroke-width="1.5" stroke-linecap="round"><path d="M14 8 a6 6 0 1 1 -6 -6"/></svg>`;
+}
+
+// Generate the matrix as a self-contained React component using Tailwind
+// utility classes (with arbitrary values for dynamic tokens). Pasted
+// straight into the "React (Tailwind) to Design" Figma plugin, every
+// cell turns into a named frame with the correct fill, padding, and
+// state styling baked in.
+function buildComponentMatrixJsx(matrix, componentName, library) {
+  const archetype = matrix.archetype || "button";
+  const label = matrix.label || componentName;
+  const glyph = matrix.glyph || "circle";
+  const rowGroups = matrix.rowGroups ?? [];
+  const rowSubItems = matrix.rowSubItems ?? [];
+  const columns = matrix.columns ?? [];
+  const skipCells = matrix.skipCells ?? [];
+
+  const VARIANT_LABEL_W = 80;
+  const BRACE_W = 22;
+  const SIZE_LABEL_W = 56;
+  const COL_W = 140;
+
+  const skipSet = new Set(
+    skipCells.map((s) => `${s.rowGroup}::${s.rowSub}::${s.column}`),
+  );
+
+  const componentFnName = pascalCase(componentName) + "Matrix";
+  const gridCols = `${VARIANT_LABEL_W}px_${BRACE_W}px_${SIZE_LABEL_W}px_repeat(${columns.length},${COL_W}px)`;
+
+  // Curly brace path is shape-agnostic — viewBox 22×100 stretches via
+  // preserveAspectRatio="none" so the same path fits any group height.
+  const bracePath = `M ${BRACE_W - 4} 0 Q ${BRACE_W - 9} 0 ${BRACE_W - 9} 5 L ${BRACE_W - 9} 45 Q ${BRACE_W - 9} 50 ${BRACE_W - 14} 50 Q ${BRACE_W - 9} 50 ${BRACE_W - 9} 55 L ${BRACE_W - 9} 95 Q ${BRACE_W - 9} 100 ${BRACE_W - 4} 100`;
+  const braceJsx = `<svg viewBox="0 0 ${BRACE_W} 100" preserveAspectRatio="none" className="w-full h-full"><path d="${bracePath}" fill="none" stroke="#a78bfa" strokeWidth="0.75" /></svg>`;
+
+  const lines = [];
+  lines.push(
+    `// ${componentName} — ${library} variants × sizes × states`,
+    `// Generated by Design Intelligence. Paste into the`,
+    `// "React (Tailwind) to Design" Figma plugin to materialise`,
+    `// every cell as a named frame.`,
+    ``,
+    `export default function ${componentFnName}() {`,
+    `  return (`,
+    `    <div className="bg-white p-6 inline-block font-sans">`,
+    `      <div className="inline-block px-2 py-1 border border-slate-900 rounded-sm text-[10px] text-slate-900 mb-3">${escapeJsxText(componentName)}</div>`,
+    `      <div className="grid grid-cols-[${gridCols}] items-stretch">`,
+  );
+
+  // Column headers row: 3 empty cells then one per column.
+  lines.push(`        <div /><div /><div />`);
+  for (const col of columns) {
+    lines.push(
+      `        <div className="text-center text-[11px] text-violet-400 py-2">${escapeJsxText(col.label)}</div>`,
+    );
+  }
+
+  for (const grp of rowGroups) {
+    const span = rowSubItems.length;
+    lines.push(``);
+    lines.push(`        {/* ${grp.label} */}`);
+    lines.push(
+      `        <div className="row-span-${span} flex items-center justify-end pr-1.5 text-[11px] text-violet-400">${escapeJsxText(grp.label)}</div>`,
+    );
+    lines.push(
+      `        <div className="row-span-${span} flex items-stretch py-1">${braceJsx}</div>`,
+    );
+
+    for (const sub of rowSubItems) {
+      lines.push(
+        `        <div className="flex items-center justify-end pr-1.5 text-[10px] text-violet-400">${escapeJsxText(sub.label)}</div>`,
+      );
+
+      for (const col of columns) {
+        const id = `${slugify(grp.id)}-${slugify(sub.id)}-${slugify(col.id)}`;
+        const skip = skipSet.has(`${grp.id}::${sub.id}::${col.id}`);
+        if (skip) {
+          lines.push(
+            `        <div data-id="${id}" className="border border-dashed border-violet-400 bg-violet-50/50" />`,
+          );
+        } else {
+          const inner = renderArchetypeCellJsx({
+            archetype,
+            variantTokens: grp.tokens,
+            sizeTokens: sub.tokens,
+            modifier: col.modifier,
+            label,
+            glyph,
+          });
+          lines.push(
+            `        <div data-id="${id}" className="border border-dashed border-violet-400 flex items-center justify-center py-3">`,
+            `          ${inner}`,
+            `        </div>`,
+          );
+        }
+      }
+    }
+  }
+
+  lines.push(
+    `      </div>`,
+    `      <div className="text-right text-[10px] text-slate-400 mt-2">${escapeJsxText(library)}</div>`,
+    `    </div>`,
+    `  );`,
+    `}`,
+  );
+
+  return lines.join("\n");
+}
+
+// Render a single cell as JSX with Tailwind utility classes. Dynamic
+// token values use arbitrary values (e.g. `bg-[#16a34a]`) which Tailwind
+// JIT and the Figma plugin both handle.
+function renderArchetypeCellJsx({
+  archetype,
+  variantTokens,
+  sizeTokens,
+  modifier,
+  label,
+  glyph,
+}) {
+  const v = variantTokens ?? {};
+  const s = sizeTokens ?? {};
+  const height = s.height ?? 36;
+  const paddingX = s.paddingX ?? 16;
+  const fontSize = s.fontSize ?? 13;
+  const fontWeight = s.fontWeight ?? 500;
+  const radius = s.radius ?? 6;
+  const iconOnly = !!s.iconOnly;
+  const iconSize = s.iconSize ?? Math.max(12, fontSize + 1);
+  const textColor = v.text ?? "#0f172a";
+  const underline = !!v.underline;
+
+  let fill = v.bg ?? null;
+  if (modifier === "hover")
+    fill = v.bgHover ?? darkenHex(v.bg, 0.08) ?? v.bg ?? null;
+  else if (modifier === "pressed")
+    fill = v.bgPressed ?? darkenHex(v.bg, 0.16) ?? v.bg ?? null;
+
+  const isIcon = archetype === "iconButton" || iconOnly;
+  const isLink = archetype === "link";
+
+  const cls = [];
+  if (!isLink) {
+    cls.push(`h-[${height}px]`);
+    if (isIcon) cls.push(`w-[${height}px]`, `p-0`);
+    else cls.push(`px-[${paddingX}px]`);
+    cls.push(`rounded-[${radius}px]`);
+    if (fill) cls.push(`bg-[${fill}]`);
+    if (v.border) cls.push("border", `border-[${v.border}]`);
+    cls.push(`text-[${textColor}]`);
+    cls.push(`text-[${fontSize}px]`);
+    cls.push(`font-${tailwindFontWeight(fontWeight)}`);
+    cls.push("inline-flex", "items-center", "justify-center", "gap-1.5");
+  } else {
+    cls.push(`text-[${textColor}]`);
+    cls.push(`text-[${fontSize}px]`);
+    cls.push(`font-${tailwindFontWeight(fontWeight)}`);
+    if (underline || modifier === "hover") cls.push("underline");
+  }
+  if (modifier === "disabled") cls.push("opacity-50");
+  else if (modifier === "loading") cls.push("opacity-[0.85]");
+  if (modifier === "focus") {
+    const ringColor = v.bg ?? v.border ?? "#3b82f6";
+    cls.push(
+      "outline",
+      "outline-2",
+      "outline-offset-2",
+      `outline-[${ringColor}]`,
+    );
+  }
+  if (underline && !isLink) cls.push("underline");
+
+  let inner;
+  if (isIcon) {
+    inner = inlineGlyphJsx(glyph || "circle", iconSize, textColor);
+  } else if (modifier === "loading") {
+    inner = `${inlineSpinnerJsx(iconSize, textColor)}<span>${escapeJsxText(label)}</span>`;
+  } else {
+    inner = escapeJsxText(label);
+  }
+
+  const tag = isLink ? "a" : "button";
+  const extraAttrs = [];
+  if (modifier === "disabled" && !isLink) extraAttrs.push("disabled");
+  if (isLink) extraAttrs.push(`href="#"`);
+
+  const attrStr =
+    (extraAttrs.length ? extraAttrs.join(" ") + " " : "") +
+    `className="${cls.join(" ")}"`;
+  return `<${tag} ${attrStr}>${inner}</${tag}>`;
+}
+
+function inlineGlyphJsx(name, size, color) {
+  // Reuse the inline-SVG generator and rewrite SVG attribute names to
+  // their JSX casing so the result drops cleanly into a React tree.
+  const html = inlineGlyphSvg(name, size, color);
+  return svgAttrsToJsx(html);
+}
+
+function inlineSpinnerJsx(size, color) {
+  return svgAttrsToJsx(inlineSpinnerSvg(size, color));
+}
+
+function svgAttrsToJsx(html) {
+  return html
+    .replace(/stroke-width=/g, "strokeWidth=")
+    .replace(/stroke-linecap=/g, "strokeLinecap=")
+    .replace(/stroke-linejoin=/g, "strokeLinejoin=")
+    .replace(/stroke-dasharray=/g, "strokeDasharray=")
+    .replace(/class=/g, "className=");
+}
+
+function tailwindFontWeight(w) {
+  if (w >= 700) return "bold";
+  if (w >= 600) return "semibold";
+  if (w >= 500) return "medium";
+  return "normal";
+}
+
+function pascalCase(s) {
+  return String(s ?? "")
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join("") || "Component";
+}
+
+// JSX text escaping — far simpler than HTML since JSX bodies render as
+// React children. We just need to neutralise `{`, `}`, and angle brackets
+// so the tokens don't get parsed as expressions or tags.
+function escapeJsxText(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/{/g, "&#123;")
+    .replace(/}/g, "&#125;");
+}
+
+// Compose the full plug-and-play matrix HTML. Each cell is a real
+// <button>/<a> with inline styles and a stable id, so plugins like
+// html.to.design / React-to-Design / Anima ingest it directly.
+function buildComponentMatrixHtml(matrix, componentName, library) {
+  const archetype = matrix.archetype || "button";
+  const label = matrix.label || componentName;
+  const glyph = matrix.glyph || "circle";
+  const rowGroups = matrix.rowGroups ?? [];
+  const rowSubItems = matrix.rowSubItems ?? [];
+  const columns = matrix.columns ?? [];
+  const skipCells = matrix.skipCells ?? [];
+
+  const VARIANT_LABEL_W = 80;
+  const BRACE_W = 22;
+  const SIZE_LABEL_W = 56;
+  const COL_W = 140;
+  const CHROME = "#a78bfa";
+  const ROW_VPAD = 12;
+
+  const skipSet = new Set(
+    skipCells.map((s) => `${s.rowGroup}::${s.rowSub}::${s.column}`),
+  );
+
+  const cells = [];
+
+  // Top-left corner cells (3 empty slots aligned with the variant /
+  // brace / size-label columns) before the column headers.
+  cells.push(`<div></div><div></div><div></div>`);
+  for (const col of columns) {
+    cells.push(
+      `<div class="dip-col-header">${escapeXml(col.label)}</div>`,
+    );
+  }
+
+  for (const grp of rowGroups) {
+    const span = rowSubItems.length;
+    cells.push(
+      `<div class="dip-variant-label" style="grid-row:span ${span}">${escapeXml(grp.label)}</div>`,
+    );
+    cells.push(
+      `<div class="dip-brace" style="grid-row:span ${span}"><svg viewBox="0 0 ${BRACE_W} 100" preserveAspectRatio="none" width="100%" height="100%"><path d="M ${BRACE_W - 4} 0 Q ${BRACE_W - 9} 0 ${BRACE_W - 9} 5 L ${BRACE_W - 9} 45 Q ${BRACE_W - 9} 50 ${BRACE_W - 14} 50 Q ${BRACE_W - 9} 50 ${BRACE_W - 9} 55 L ${BRACE_W - 9} 95 Q ${BRACE_W - 9} 100 ${BRACE_W - 4} 100" fill="none" stroke="${CHROME}" stroke-width="0.75" /></svg></div>`,
+    );
+    for (const sub of rowSubItems) {
+      cells.push(
+        `<div class="dip-size-label">${escapeXml(sub.label)}</div>`,
+      );
+      for (const col of columns) {
+        const skip = skipSet.has(`${grp.id}::${sub.id}::${col.id}`);
+        const id = `${slugify(grp.id)}-${slugify(sub.id)}-${slugify(col.id)}`;
+        if (skip) {
+          cells.push(`<div class="dip-cell dip-skip" data-id="${escapeAttr(id)}"></div>`);
+        } else {
+          const cellInner = renderArchetypeCellHtml({
+            archetype,
+            variantTokens: grp.tokens,
+            sizeTokens: sub.tokens,
+            modifier: col.modifier,
+            label,
+            glyph,
+          });
+          cells.push(
+            `<div class="dip-cell" data-id="${escapeAttr(id)}">${cellInner}</div>`,
+          );
+        }
+      }
+    }
+  }
+
+  const gridCols = `${VARIANT_LABEL_W}px ${BRACE_W}px ${SIZE_LABEL_W}px repeat(${columns.length}, ${COL_W}px)`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeXml(componentName)} matrix</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; background: #fafafb; font-family: Inter, system-ui, -apple-system, sans-serif; padding: 24px; }
+  .dip-matrix { display: inline-block; background: #ffffff; padding: 24px; border-radius: 4px; }
+  .dip-frame-title { display: inline-block; padding: 4px 8px; border: 0.75px solid #0f172a; border-radius: 2px; font-size: 10px; color: #0f172a; margin-bottom: 12px; }
+  .dip-grid { display: grid; grid-template-columns: ${gridCols}; align-items: stretch; }
+  .dip-col-header { font-size: 11px; color: ${CHROME}; text-align: center; padding: 6px 0 10px; }
+  .dip-variant-label { font-size: 11px; color: ${CHROME}; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+  .dip-size-label { font-size: 10px; color: ${CHROME}; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+  .dip-brace { display: flex; align-items: stretch; padding: 4px 0; }
+  .dip-cell { border: 0.75px dashed ${CHROME}; display: flex; align-items: center; justify-content: center; padding: ${ROW_VPAD}px 0; box-sizing: border-box; }
+  .dip-skip { background: #f5f3ff; opacity: 0.45; }
+  .dip-spinner { animation: dip-spin 0.9s linear infinite; transform-origin: 50% 50%; }
+  @keyframes dip-spin { to { transform: rotate(360deg); } }
+  .dip-meta { margin-top: 8px; text-align: right; font-size: 10px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="dip-matrix" data-component="${escapeAttr(componentName)}" data-library="${escapeAttr(library)}">
+  <div class="dip-frame-title">${escapeXml(componentName)}</div>
+  <div class="dip-grid">
+    ${cells.join("\n    ")}
+  </div>
+  <div class="dip-meta">${escapeXml(library)}</div>
+</div>
+</body>
+</html>`;
 }
 
 function ReferencesBody({ result }) {

@@ -118,19 +118,208 @@ const interactionAnalystSchema = {
   },
 };
 
+// Matrix-style States & Variants schema. The model picks an `archetype`
+// and emits design tokens (variant fills, size paddings, state modifiers)
+// instead of pixel-level SVGs. The frontend composes one big SVG matrix
+// (variants × sizes × states) deterministically from those tokens, so the
+// output is consistent, cheap to generate, and Figma-importable.
+const variantTokens = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text"],
+  properties: {
+    bg: {
+      type: ["string", "null"],
+      description:
+        "Fill colour (hex like #16a34a). Use null for transparent — typical for Ghost / Link variants.",
+    },
+    bgHover: {
+      type: ["string", "null"],
+      description:
+        "Optional override for the Hover column. Omit/null lets the renderer derive it by darkening `bg` ~8%.",
+    },
+    bgPressed: {
+      type: ["string", "null"],
+      description:
+        "Optional override for the Pressed column. Omit/null lets the renderer derive it by darkening `bg` ~16%.",
+    },
+    border: {
+      type: ["string", "null"],
+      description: "Border colour (hex), or null for no border.",
+    },
+    text: {
+      type: "string",
+      description: "Text and icon colour (hex).",
+    },
+    placeholder: {
+      type: ["string", "null"],
+      description:
+        "Lighter text colour for input placeholder content. Only meaningful for input-style archetypes.",
+    },
+    underline: {
+      type: "boolean",
+      description: "True for Link variants where the label is underlined.",
+    },
+  },
+};
+
+const sizeTokens = {
+  type: "object",
+  additionalProperties: false,
+  required: ["height", "paddingX", "fontSize", "radius"],
+  properties: {
+    height: { type: "integer", description: "Cell content height in px (e.g. 28, 32, 36, 44)." },
+    paddingX: { type: "integer", description: "Horizontal padding inside the cell." },
+    fontSize: { type: "integer", description: "Label font-size in px." },
+    fontWeight: {
+      type: "integer",
+      enum: [400, 500, 600, 700],
+    },
+    radius: { type: "integer" },
+    iconOnly: {
+      type: "boolean",
+      description: "True for square icon-only sizes — renders `glyph` instead of the label.",
+    },
+    iconSize: { type: "integer" },
+  },
+};
+
 const statesVariantsSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["componentName", "summary", "sections", "priorityOrder", "recommendations"],
+  required: [
+    "componentName",
+    "library",
+    "summary",
+    "matrix",
+    "sections",
+    "priorityOrder",
+    "recommendations",
+  ],
   properties: {
     componentName: {
       type: "string",
-      description: "Echo the canonical component name you're generating states for.",
+      description: "Echo the canonical component name you're generating the matrix for.",
+    },
+    library: {
+      type: "string",
+      enum: ["shadcn", "material", "radix", "tailwind"],
     },
     summary: {
       type: "string",
       description:
         "1–2 sentence overview of what this component is and the most critical state-coverage concern for it.",
+    },
+    matrix: {
+      type: "object",
+      additionalProperties: false,
+      required: ["archetype", "label", "rowGroups", "rowSubItems", "columns"],
+      properties: {
+        archetype: {
+          type: "string",
+          enum: [
+            "button",
+            "iconButton",
+            "input",
+            "badge",
+            "chip",
+            "checkbox",
+            "toggle",
+            "avatar",
+            "card",
+            "link",
+          ],
+          description:
+            "Drives how each cell is drawn. Use `button` for rectangular clickable components.",
+        },
+        label: {
+          type: "string",
+          description: "Default text shown inside cells, e.g. 'Button', 'Sign in', 'Search'.",
+        },
+        glyph: {
+          type: "string",
+          enum: [
+            "circle",
+            "plus",
+            "search",
+            "check",
+            "arrow",
+            "settings",
+            "user",
+            "chevronDown",
+          ],
+          description: "Icon used in iconOnly size cells. Required if any size has iconOnly:true.",
+        },
+        rowGroups: {
+          type: "array",
+          description:
+            "Outer Y axis — typically variants. 2–8 entries. Each entry's `tokens` define the rest-state look.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "label", "tokens"],
+            properties: {
+              id: { type: "string", description: "Stable id, e.g. 'default', 'secondary'." },
+              label: { type: "string" },
+              tokens: variantTokens,
+            },
+          },
+        },
+        rowSubItems: {
+          type: "array",
+          description:
+            "Inner Y axis — typically sizes. 1–6 entries. If the component has no meaningful size axis, use a single entry with id 'default'.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "label", "tokens"],
+            properties: {
+              id: { type: "string" },
+              label: { type: "string" },
+              tokens: sizeTokens,
+            },
+          },
+        },
+        columns: {
+          type: "array",
+          description: "X axis — typically states. 2–8 entries.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "label", "modifier"],
+            properties: {
+              id: { type: "string" },
+              label: { type: "string" },
+              modifier: {
+                type: "string",
+                enum: [
+                  "rest",
+                  "hover",
+                  "pressed",
+                  "focus",
+                  "loading",
+                  "disabled",
+                ],
+              },
+            },
+          },
+        },
+        skipCells: {
+          type: "array",
+          description:
+            "Sparse list of cells to leave blank because the combo is not meaningful (e.g. Ghost × icon × Loading). Reference combos by id.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["rowGroup", "rowSub", "column"],
+            properties: {
+              rowGroup: { type: "string" },
+              rowSub: { type: "string" },
+              column: { type: "string" },
+            },
+          },
+        },
+      },
     },
     sections: {
       type: "array",
@@ -156,22 +345,13 @@ const statesVariantsSchema = {
           title: { type: "string" },
           states: {
             type: "array",
-            description:
-              "Every applicable state/variant for this section. Use empty string for note if there's nothing useful to say.",
             items: {
               type: "object",
               additionalProperties: false,
               required: ["name", "note"],
               properties: {
-                name: {
-                  type: "string",
-                  description: "Short label, e.g. 'Hover', 'Disabled', 'Empty'.",
-                },
-                note: {
-                  type: "string",
-                  description:
-                    "One-line design tip or pitfall. Empty string if nothing useful to add.",
-                },
+                name: { type: "string" },
+                note: { type: "string" },
               },
             },
           },
@@ -181,13 +361,12 @@ const statesVariantsSchema = {
     priorityOrder: {
       type: "array",
       description:
-        "Ordered state/variant names (matching states[].name above) from most to least critical to design first. 6–12 entries.",
+        "Names from most to least critical to design first. 6–12 entries.",
       items: { type: "string" },
     },
     recommendations: {
       type: "array",
-      description:
-        "0–6 high-leverage best practices specific to designing this component well. Skip generic platitudes.",
+      description: "0–6 high-leverage best practices specific to this component.",
       items: { type: "string" },
     },
   },
@@ -372,10 +551,24 @@ export const AGENTS = {
     id: "states-variants",
     name: "States & Variants Generator",
     inputs: ["text"],
+    extras: [
+      {
+        key: "library",
+        label: "Library style",
+        type: "select",
+        default: "shadcn",
+        options: [
+          { value: "shadcn", label: "shadcn/ui" },
+          { value: "material", label: "Material" },
+          { value: "radix", label: "Radix" },
+          { value: "tailwind", label: "Tailwind base" },
+        ],
+      },
+    ],
     systemPrompt: readPrompt("states-variants-generator.md"),
     schema: statesVariantsSchema,
     userInstruction:
-      "Generate the complete states-and-variants checklist for the component below. Output the JSON object only — no prose.",
+      "Generate the complete states-and-variants checklist for the component below, plus a `previewSvg` rendering for each state in the requested library style. Output the JSON object only — no prose.",
   },
   "reference-finder": {
     id: "reference-finder",
