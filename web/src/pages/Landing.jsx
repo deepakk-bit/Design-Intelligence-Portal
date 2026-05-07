@@ -15,6 +15,7 @@ import {
   duplicateWorkspace,
   updateWorkspace,
 } from "../lib/storage.js";
+import { aggregateCost, estimateCost, fmtDollars } from "../lib/pricing.js";
 
 export default function Landing() {
   const [, navigate] = useLocation();
@@ -195,6 +196,14 @@ function WorkspaceCard({
             {ws.canvas?.nodes?.length
               ? ` · ${ws.canvas.nodes.length} node${ws.canvas.nodes.length === 1 ? "" : "s"}`
               : ""}
+            {ws.usage?.runs > 0 && (
+              <>
+                {" · "}
+                <span title="Estimated workspace spend">
+                  {fmtDollars(workspaceCost(ws))}
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="relative">
@@ -256,6 +265,19 @@ function EmptyThumb({ id }) {
       <Sparkles size={28} className="text-ink-300" />
     </div>
   );
+}
+
+function workspaceCost(ws) {
+  const u = ws.usage;
+  if (!u) return 0;
+  // Prefer the pre-accumulated dollars total (locked in at each run's model
+  // rate). Fall back to a fresh estimate for workspaces saved before the
+  // dollars field existed.
+  if (typeof u.dollars === "number") return u.dollars;
+  if (Array.isArray(u.history) && u.history.length > 0) {
+    return aggregateCost(u.history).dollars;
+  }
+  return estimateCost(u, null).dollars;
 }
 
 function timeAgo(ts) {

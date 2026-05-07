@@ -182,6 +182,7 @@ function StatusBadge({ status }) {
 function ChatTab({ node }) {
   const nodes = useCanvasStore((s) => s.nodes);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const recordUsage = useCanvasStore((s) => s.recordUsage);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
@@ -268,6 +269,8 @@ function ChatTab({ node }) {
       updateNodeData(agentNode.id, {
         messages: [...next, { role: "assistant", content: res.reply }],
       });
+      // Chat turns also burn tokens — count them on the workspace total.
+      if (res?.usage) recordUsage(res.usage, def.id, res?.model);
     } catch (err) {
       updateNodeData(agentNode.id, {
         messages: [
