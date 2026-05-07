@@ -13,6 +13,7 @@ export default function AgentNode({ id, data, selected }) {
   const addNode = useCanvasStore((s) => s.addNode);
   const selectNode = useCanvasStore((s) => s.selectNode);
   const nodes = useCanvasStore((s) => s.nodes);
+  const recordUsage = useCanvasStore((s) => s.recordUsage);
 
   if (!def) return null;
   const Icon = def.icon;
@@ -129,6 +130,10 @@ export default function AgentNode({ id, data, selected }) {
         context: data.context?.trim() || undefined,
       });
       updateNodeData(id, { status: "done", result: res });
+      // Roll up tokens onto the workspace accumulator. Reruns of the same
+      // node still count toward the workspace total even though the per-node
+      // result.usage gets overwritten.
+      if (res?.usage) recordUsage(res.usage, def.id, res?.model);
 
       const r = res?.result ?? {};
       const kinds = [

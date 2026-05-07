@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, MessageSquare, PanelLeft } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
+import UsageChip from "./UsageChip.jsx";
 
 export default function TopBar() {
   const [, navigate] = useLocation();
@@ -66,8 +67,10 @@ export default function TopBar() {
         )}
       </div>
 
-      {/* Right cluster: panel toggles */}
-      <div className="absolute top-4 right-4 z-30 flex items-center gap-1.5 bg-white rounded-xl shadow-floating border border-ink-200 px-2 py-1.5">
+      {/* Right cluster: usage + panel toggles */}
+      <div className="absolute top-4 right-4 z-30 flex items-center gap-1 bg-white rounded-xl shadow-floating border border-ink-200 px-1.5 py-1.5">
+        <UsageChip />
+        <div className="w-px h-5 bg-ink-200 mx-0.5" />
         <button
           onClick={() => toggleRight()}
           className={`p-1.5 rounded-lg ${

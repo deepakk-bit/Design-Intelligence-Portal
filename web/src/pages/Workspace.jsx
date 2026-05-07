@@ -15,6 +15,7 @@ export default function Workspace({ id }) {
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const viewport = useCanvasStore((s) => s.viewport);
+  const usage = useCanvasStore((s) => s.usage);
   const workspaceId = useCanvasStore((s) => s.workspaceId);
   const workspaceName = useCanvasStore((s) => s.workspaceName);
 
@@ -35,10 +36,11 @@ export default function Workspace({ id }) {
       updateWorkspace(id, {
         name: workspaceName,
         canvas: { nodes, edges, viewport },
+        usage,
       });
     }, 400);
     return () => clearTimeout(t);
-  }, [id, workspaceId, workspaceName, nodes, edges, viewport]);
+  }, [id, workspaceId, workspaceName, nodes, edges, viewport, usage]);
 
   if (workspaceId !== id) {
     return (
