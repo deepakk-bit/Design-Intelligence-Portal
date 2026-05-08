@@ -11,6 +11,7 @@ import {
   Layers,
   Compass,
   ClipboardCheck,
+  ClipboardList,
 } from "lucide-react";
 
 export const AGENT_CATEGORIES = [
@@ -37,7 +38,7 @@ export const AGENT_CATEGORIES = [
         id: "states-variants",
         name: "States & Variants Generator",
         description:
-          "Given a component name, lists every state and variant to design — and renders each as an SVG preview in your chosen library style, ready to drag into Figma.",
+          "Given a component name, lists every state and variant to design — and renders the full variant × size × state matrix as React + Tailwind code, ready to drag into Figma.",
         icon: Layers,
         accent: "#2563eb",
         inputs: ["text"],
@@ -52,6 +53,37 @@ export const AGENT_CATEGORIES = [
               { value: "material", label: "Material" },
               { value: "radix", label: "Radix" },
               { value: "tailwind", label: "Tailwind base" },
+            ],
+          },
+          {
+            key: "primaryColor",
+            label: "Primary colour",
+            type: "color",
+            default: "#0f172a",
+            help: "Used as the Default / Primary variant fill.",
+          },
+          {
+            key: "radius",
+            label: "Border radius",
+            type: "number",
+            default: 6,
+            min: 0,
+            max: 999,
+            suffix: "px",
+            help: "Used for every size's `radius` token. Use 999 for fully pill.",
+          },
+          {
+            key: "typography",
+            label: "Typography",
+            type: "select",
+            default: "inter",
+            options: [
+              { value: "inter", label: "Inter" },
+              { value: "system", label: "System UI" },
+              { value: "roboto", label: "Roboto" },
+              { value: "sf-pro", label: "SF Pro" },
+              { value: "geist", label: "Geist" },
+              { value: "manrope", label: "Manrope" },
             ],
           },
         ],
@@ -97,6 +129,23 @@ export const AGENT_CATEGORIES = [
             help: "Screenshot of the implemented UI.",
           },
         ],
+      },
+      {
+        id: "dev-handoff",
+        name: "Dev Handoff Checker",
+        description:
+          "Reviews a set of Figma frames before they ship to engineering and surfaces what's complete vs missing — states, interactions, spacing, assets, edge cases, responsive.",
+        icon: ClipboardList,
+        accent: "#0d9488",
+        imageSlots: [
+          { key: "frame1", label: "Frame 1", help: "Required. Primary screen." },
+          { key: "frame2", label: "Frame 2", help: "Optional.", optional: true },
+          { key: "frame3", label: "Frame 3", help: "Optional.", optional: true },
+          { key: "frame4", label: "Frame 4", help: "Optional.", optional: true },
+        ],
+        inputs: ["text"],
+        inputsRequireAll: ["text"],
+        textInputKind: "prompt",
       },
     ],
   },

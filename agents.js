@@ -564,11 +564,42 @@ export const AGENTS = {
           { value: "tailwind", label: "Tailwind base" },
         ],
       },
+      {
+        key: "primaryColor",
+        label: "Primary colour",
+        type: "color",
+        default: "#0f172a",
+        help: "Used as the Default / Primary variant fill.",
+      },
+      {
+        key: "radius",
+        label: "Border radius",
+        type: "number",
+        default: 6,
+        min: 0,
+        max: 999,
+        suffix: "px",
+        help: "Used for every size's `radius` token. Use 999 for fully pill.",
+      },
+      {
+        key: "typography",
+        label: "Typography",
+        type: "select",
+        default: "inter",
+        options: [
+          { value: "inter", label: "Inter" },
+          { value: "system", label: "System UI" },
+          { value: "roboto", label: "Roboto" },
+          { value: "sf-pro", label: "SF Pro" },
+          { value: "geist", label: "Geist" },
+          { value: "manrope", label: "Manrope" },
+        ],
+      },
     ],
     systemPrompt: readPrompt("states-variants-generator.md"),
     schema: statesVariantsSchema,
     userInstruction:
-      "Generate the complete states-and-variants checklist for the component below, plus a `previewSvg` rendering for each state in the requested library style. Output the JSON object only — no prose.",
+      "Generate the component matrix for the component below — variants × sizes × states — using the supplied options as authoritative tokens. Output the JSON object only — no prose.",
   },
   "reference-finder": {
     id: "reference-finder",
@@ -605,6 +636,112 @@ export const AGENTS = {
     },
     userInstruction:
       "Extract the best Refero search query, queryType, and platform for what the user is designing. Output the JSON object only — no prose.",
+  },
+  "dev-handoff": {
+    id: "dev-handoff",
+    name: "Dev Handoff Checker",
+    // Multi-image: up to 4 frames, only the first is required so designers
+    // can hand off a single screen or a small set without padding the rest.
+    imageSlots: [
+      { key: "frame1", label: "Frame 1", help: "Required. Primary screen being handed off." },
+      { key: "frame2", label: "Frame 2", help: "Optional. Additional frame.", optional: true },
+      { key: "frame3", label: "Frame 3", help: "Optional. Additional frame.", optional: true },
+      { key: "frame4", label: "Frame 4", help: "Optional. Additional frame.", optional: true },
+    ],
+    inputs: ["text"],
+    inputsRequireAll: ["text"],
+    textInputKind: "prompt",
+    systemPrompt: readPrompt("dev-handoff.md"),
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "componentName",
+        "summary",
+        "verdict",
+        "stats",
+        "blockers",
+        "categories",
+      ],
+      properties: {
+        componentName: { type: "string" },
+        summary: { type: "string" },
+        verdict: {
+          type: "object",
+          additionalProperties: false,
+          required: ["status", "reason"],
+          properties: {
+            status: { type: "string", enum: ["ready", "conditional", "not-ready"] },
+            reason: { type: "string" },
+          },
+        },
+        stats: {
+          type: "object",
+          additionalProperties: false,
+          required: ["complete", "partial", "missing", "unknown", "total"],
+          properties: {
+            complete: { type: "integer" },
+            partial: { type: "integer" },
+            missing: { type: "integer" },
+            unknown: { type: "integer" },
+            total: { type: "integer" },
+          },
+        },
+        blockers: {
+          type: "array",
+          description:
+            "Short titles of high-severity missing/partial items. Empty array if none.",
+          items: { type: "string" },
+        },
+        categories: {
+          type: "array",
+          description:
+            "All six categories in this exact order: states, interactions, spacing, assets, edgeCases, responsive.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "title", "checks"],
+            properties: {
+              id: {
+                type: "string",
+                enum: [
+                  "states",
+                  "interactions",
+                  "spacing",
+                  "assets",
+                  "edgeCases",
+                  "responsive",
+                ],
+              },
+              title: { type: "string" },
+              checks: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["name", "status", "evidence", "fix", "severity"],
+                  properties: {
+                    name: { type: "string" },
+                    status: {
+                      type: "string",
+                      enum: ["complete", "partial", "missing", "unknown"],
+                    },
+                    evidence: { type: "string" },
+                    fix: { type: "string" },
+                    severity: {
+                      type: "string",
+                      enum: ["high", "medium", "low"],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    userInstruction:
+      "Review the attached frames against the feature description below. Return the structured Dev Handoff Completeness JSON only — no prose.",
   },
   "qa-review": {
     id: "qa-review",

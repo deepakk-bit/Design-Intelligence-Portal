@@ -124,9 +124,28 @@ Reference combos by their `id`s, not labels.
 - **tailwind** — utility default look (`#3b82f6` primary, `#e5e7eb`
   borders).
 
-The colours above are guidance, not hard requirements — pick what reads
-correctly for the requested library. Keep contrast WCAG-AA on the Default
-column.
+Colours and radii in that guide are defaults you fall back on. **The
+designer-supplied options in the `# Options` block of the user message
+take priority** — treat them as authoritative and weave them through
+the matrix:
+
+- `Primary colour` — use this hex as the **Default / Primary variant's
+  `bg`**. Derive `bgHover` (~8% darker) and `bgPressed` (~16% darker)
+  from it. If a contrasting variant (e.g. `outline`, `ghost`, `link`)
+  needs an accent, use the same primary colour for `text`/`border`.
+- `Border radius` — use this exact value for every size's `radius`
+  token across the whole matrix (you may still pick a larger radius for
+  pill/round-icon variants if the size's `iconOnly` is true and the
+  user chose ≤8px — call it out).
+- `Typography` — keeps the `fontWeight` choices appropriate to the
+  family (e.g. Roboto leans 500, Inter 500/600, system varies). Don't
+  emit font-family in tokens — the renderer is family-agnostic — but
+  mention the chosen family in `recommendations` so the designer
+  applies it in Figma.
+
+Keep contrast WCAG-AA on the Default column whatever the supplied
+`Primary colour` happens to be — flip `text` to white or near-black as
+needed.
 
 ---
 

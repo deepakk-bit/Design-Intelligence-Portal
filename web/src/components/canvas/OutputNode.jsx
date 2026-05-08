@@ -10,6 +10,7 @@ import {
   Layers,
   Star,
   ClipboardCheck,
+  ClipboardList,
   Compass,
   Copy,
   Download,
@@ -18,6 +19,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
+  CircleX,
+  CircleAlert,
 } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
@@ -68,6 +72,12 @@ const KINDS = {
     icon: Layers,
     accent: "#1d4ed8",
     sub: "React + Tailwind code, ready for Figma",
+  },
+  handoff: {
+    label: "Dev Handoff Checklist",
+    icon: ClipboardList,
+    accent: "#0d9488",
+    sub: "Frame readiness — what's complete vs missing",
   },
   references: {
     label: "References",
@@ -150,6 +160,9 @@ export default function OutputNode({ id, data, selected }) {
           <QaReviewBody nodeId={id} data={data} result={result} />
         )}
         {kind === "previews" && <PreviewsBody result={result} />}
+        {kind === "handoff" && (
+          <HandoffBody nodeId={id} data={data} result={result} />
+        )}
         {kind === "references" && <ReferencesBody result={result} />}
       </div>
     </div>
@@ -718,6 +731,323 @@ function Pill({ color, bg, children }) {
     >
       {children}
     </span>
+  );
+}
+
+// Dev Handoff Checklist body. Renders verdict + stats bar + blockers
+// + per-category checklist with completion icons. Each row is checkable
+// so the designer can mark items resolved as they fix the file (state
+// persists into the canvas store via `data.resolvedChecks`, keyed by a
+// stable `category-id::index` so a re-run with the same shape preserves
+// progress).
+const HANDOFF_STATUS_META = {
+  complete: {
+    label: "Complete",
+    color: "#10b981",
+    bg: "#ecfdf5",
+    icon: Check,
+  },
+  partial: {
+    label: "Partial",
+    color: "#d97706",
+    bg: "#fffbeb",
+    icon: CircleAlert,
+  },
+  missing: {
+    label: "Missing",
+    color: "#dc2626",
+    bg: "#fef2f2",
+    icon: CircleX,
+  },
+  unknown: {
+    label: "Unknown",
+    color: "#64748b",
+    bg: "#f1f5f9",
+    icon: CircleHelp,
+  },
+};
+
+const HANDOFF_VERDICT_META = {
+  ready: { label: "Ready", color: "#10b981" },
+  conditional: { label: "Conditional", color: "#d97706" },
+  "not-ready": { label: "Not ready", color: "#dc2626" },
+};
+
+function HandoffBody({ nodeId, data, result }) {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const componentName = result.componentName ?? "Handoff";
+  const summary = result.summary ?? "";
+  const verdict = result.verdict ?? {};
+  const stats = result.stats ?? {};
+  const blockers = result.blockers ?? [];
+  const categories = result.categories ?? [];
+  const resolvedSet = new Set(data.resolvedChecks ?? []);
+
+  const verdictMeta =
+    HANDOFF_VERDICT_META[verdict.status] ?? {
+      label: verdict.status ?? "—",
+      color: "#64748b",
+    };
+
+  const total = stats.total ?? 0;
+  const segments = ["complete", "partial", "missing", "unknown"]
+    .map((s) => ({ s, n: stats[s] ?? 0 }))
+    .filter((seg) => seg.n > 0);
+
+  function toggleResolved(key) {
+    updateNodeData(nodeId, (prev) => {
+      const cur = new Set(prev.resolvedChecks ?? []);
+      if (cur.has(key)) cur.delete(key);
+      else cur.add(key);
+      return { ...prev, resolvedChecks: [...cur] };
+    });
+  }
+
+  function clearResolved() {
+    updateNodeData(nodeId, (prev) => ({ ...prev, resolvedChecks: [] }));
+  }
+
+  return (
+    <div className="space-y-4">
+      {componentName && (
+        <div className="text-[12px] text-ink-500">
+          Frame:{" "}
+          <span className="font-semibold text-ink-900">{componentName}</span>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-ink-200 p-3 bg-white">
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold text-white"
+            style={{ background: verdictMeta.color }}
+          >
+            {verdictMeta.label}
+          </span>
+          <span className="text-[12px] text-ink-500">
+            {total} check{total === 1 ? "" : "s"}
+          </span>
+        </div>
+        {/* Stats progress bar — segmented by status. */}
+        {total > 0 && (
+          <div className="h-1.5 rounded-full overflow-hidden flex bg-ink-100 mb-2">
+            {segments.map(({ s, n }) => (
+              <div
+                key={s}
+                style={{
+                  width: `${(n / total) * 100}%`,
+                  background: HANDOFF_STATUS_META[s].color,
+                }}
+              />
+            ))}
+          </div>
+        )}
+        <div className="flex gap-1.5 text-[11px] flex-wrap mb-2">
+          <Pill color="#059669" bg="#ecfdf5">
+            {stats.complete ?? 0} complete
+          </Pill>
+          <Pill color="#d97706" bg="#fffbeb">
+            {stats.partial ?? 0} partial
+          </Pill>
+          <Pill color="#dc2626" bg="#fef2f2">
+            {stats.missing ?? 0} missing
+          </Pill>
+          {(stats.unknown ?? 0) > 0 && (
+            <Pill color="#64748b" bg="#f1f5f9">
+              {stats.unknown} unknown
+            </Pill>
+          )}
+        </div>
+        {summary && (
+          <p className="text-[12px] leading-snug text-ink-700">{summary}</p>
+        )}
+      </div>
+
+      {blockers.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50/50 p-3">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <CircleX size={13} className="text-red-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-red-700">
+              Blockers ({blockers.length})
+            </span>
+          </div>
+          <ul className="space-y-1 text-[12px] text-ink-900">
+            {blockers.map((b, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-red-500 shrink-0">•</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <SectionLabel
+            icon={ClipboardList}
+            color="#0d9488"
+            count={categories.reduce((n, c) => n + (c.checks?.length ?? 0), 0)}
+          >
+            Checks
+          </SectionLabel>
+          {resolvedSet.size > 0 && (
+            <button
+              onClick={clearResolved}
+              className="text-[10px] text-ink-400 hover:text-ink-700 underline underline-offset-2 -mt-2"
+            >
+              Reset {resolvedSet.size} resolved
+            </button>
+          )}
+        </div>
+        <div className="space-y-3">
+          {categories.map((cat) => (
+            <HandoffCategory
+              key={cat.id}
+              category={cat}
+              resolvedSet={resolvedSet}
+              onToggle={toggleResolved}
+            />
+          ))}
+        </div>
+      </div>
+
+      {verdict.reason && (
+        <div className="rounded-lg border border-ink-200 bg-ink-50/50 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 mb-1">
+            Verdict reason
+          </div>
+          <p className="text-[12px] leading-snug text-ink-700">
+            {verdict.reason}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HandoffCategory({ category, resolvedSet, onToggle }) {
+  const checks = category.checks ?? [];
+  if (checks.length === 0) {
+    return (
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-teal-700 mb-1.5">
+          {category.title}
+        </div>
+        <div className="text-[11px] text-ink-400 italic pl-1">
+          No checks for this category.
+        </div>
+      </div>
+    );
+  }
+  // Split: open work first (missing / partial / unknown), then complete.
+  const order = (s) =>
+    s === "missing" ? 0 : s === "partial" ? 1 : s === "unknown" ? 2 : 3;
+  const sorted = [...checks]
+    .map((c, i) => ({ check: c, idx: i }))
+    .sort((a, b) => order(a.check.status) - order(b.check.status));
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-teal-700 mb-1.5">
+        {category.title}
+      </div>
+      <div className="space-y-1.5">
+        {sorted.map(({ check, idx }) => (
+          <HandoffCheckRow
+            key={`${category.id}-${idx}`}
+            check={check}
+            resolvedKey={`${category.id}::${idx}`}
+            resolved={resolvedSet.has(`${category.id}::${idx}`)}
+            onToggle={onToggle}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HandoffCheckRow({ check, resolvedKey, resolved, onToggle }) {
+  const meta = HANDOFF_STATUS_META[check.status] ?? HANDOFF_STATUS_META.unknown;
+  const StatusIcon = meta.icon;
+  const sev = check.severity;
+  const sevMeta =
+    sev === "high"
+      ? { label: "High", color: "#dc2626", bg: "#fef2f2" }
+      : sev === "medium"
+        ? { label: "Med", color: "#ea580c", bg: "#fff7ed" }
+        : { label: "Low", color: "#ca8a04", bg: "#fefce8" };
+
+  // Hide low-severity sev pill on Complete rows — the row's check icon
+  // already says "all good", a "Low" pill would just add noise.
+  const showSeverity = check.status !== "complete";
+
+  return (
+    <div
+      className={`rounded-lg border bg-white text-[12px] text-ink-700 leading-snug transition ${
+        resolved
+          ? "border-emerald-200 bg-emerald-50/40 opacity-70"
+          : "border-ink-200"
+      }`}
+    >
+      <div className="flex items-start gap-2 px-2.5 py-2">
+        {/* Status icon — also acts as a colour cue. */}
+        <div
+          className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: meta.bg, color: meta.color }}
+          title={meta.label}
+        >
+          <StatusIcon size={10} strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={`font-medium text-ink-900 ${
+                resolved ? "line-through decoration-ink-400" : ""
+              }`}
+            >
+              {check.name}
+            </span>
+            {showSeverity && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                style={{ background: sevMeta.bg, color: sevMeta.color }}
+              >
+                {sevMeta.label}
+              </span>
+            )}
+          </div>
+          {check.evidence && (
+            <div className="text-[11px] text-ink-600 mt-1">
+              <span className="text-ink-500">Saw: </span>
+              {check.evidence}
+            </div>
+          )}
+          {check.fix && (
+            <div className="text-[11px] text-ink-600 mt-0.5">
+              <span className="text-ink-500">Fix: </span>
+              {check.fix}
+            </div>
+          )}
+        </div>
+        {check.status !== "complete" && (
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={resolved}
+            aria-label={resolved ? "Mark as unresolved" : "Mark as resolved"}
+            onClick={() => onToggle(resolvedKey)}
+            className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition ${
+              resolved
+                ? "bg-emerald-500 border-emerald-500 text-white"
+                : "bg-white border-ink-300 hover:border-ink-500"
+            }`}
+            title={resolved ? "Mark as unresolved" : "Mark as resolved"}
+          >
+            {resolved && <Check size={11} strokeWidth={3} />}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
