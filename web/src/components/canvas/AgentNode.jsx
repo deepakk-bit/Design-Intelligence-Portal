@@ -30,7 +30,9 @@ export default function AgentNode({ id, data, selected }) {
   const slots = def.imageSlots ?? null;
   const inputs = def.inputs ?? (slots ? [] : ["image"]);
   const wantsImage = !slots && inputs.includes("image");
-  const wantsText = inputs.includes("text") && !slots;
+  // Text input renders alongside slots too (e.g. Dev Handoff Checker
+  // takes 1–4 frames + a feature description).
+  const wantsText = inputs.includes("text");
   const requireOneOf = def.inputsRequireOneOf ?? null;
   const requireAll = def.inputsRequireAll ?? null;
   // Text input UX:
@@ -41,8 +43,9 @@ export default function AgentNode({ id, data, selected }) {
     def.textInputKind ??
     (wantsImage && wantsText ? "prompt" : "component");
 
+  // Optional slots don't gate the run button.
   const allSlotsFilled =
-    !slots || slots.every((s) => !!data.images?.[s.key]);
+    !slots || slots.every((s) => s.optional || !!data.images?.[s.key]);
 
   async function setSlotImage(slotKey, file) {
     if (!file) return;
@@ -162,6 +165,14 @@ export default function AgentNode({ id, data, selected }) {
         !!r.checkCoverage &&
         r.recommendations &&
         !Array.isArray(r.recommendations);
+      // Dev Handoff has the unique combination of `verdict + stats +
+      // blockers + categories`. Detect early so the generic "checklist"
+      // path doesn't grab it.
+      const isHandoff =
+        !!r.verdict &&
+        !!r.stats &&
+        Array.isArray(r.blockers) &&
+        Array.isArray(r.categories);
       const kinds = [
         {
           kind: "overview",
@@ -174,7 +185,8 @@ export default function AgentNode({ id, data, selected }) {
         },
         {
           kind: "checklist",
-          has: !isQaReview && (r.sections?.length ?? 0) > 0,
+          has:
+            !isQaReview && !isHandoff && (r.sections?.length ?? 0) > 0,
         },
         {
           kind: "previews",
@@ -183,6 +195,7 @@ export default function AgentNode({ id, data, selected }) {
           // composed deterministically by the frontend from those tokens.
           has:
             !isQaReview &&
+            !isHandoff &&
             !!r.matrix &&
             Array.isArray(r.matrix.rowGroups) &&
             Array.isArray(r.matrix.rowSubItems) &&
@@ -191,9 +204,14 @@ export default function AgentNode({ id, data, selected }) {
             r.matrix.columns.length > 0,
         },
         {
+          kind: "handoff",
+          has: isHandoff,
+        },
+        {
           kind: "recommendations",
           has:
             !isQaReview &&
+            !isHandoff &&
             (Array.isArray(r.recommendations)
               ? r.recommendations.length > 0
               : false ||
@@ -347,25 +365,41 @@ export default function AgentNode({ id, data, selected }) {
           </div>
         )}
 
-        {def.extras?.map((ex) => (
-          <div key={ex.key}>
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
-              {ex.label}
-            </label>
-            {ex.type === "select" ? (
-              <Select
-                value={data.extras?.[ex.key] ?? ex.default}
-                options={ex.options}
-                onChange={(v) =>
-                  updateNodeData(id, (prev) => ({
-                    ...prev,
-                    extras: { ...(prev.extras ?? {}), [ex.key]: v },
-                  }))
-                }
-              />
-            ) : null}
-          </div>
-        ))}
+        {def.extras?.map((ex) => {
+          const value = data.extras?.[ex.key] ?? ex.default;
+          const setValue = (v) =>
+            updateNodeData(id, (prev) => ({
+              ...prev,
+              extras: { ...(prev.extras ?? {}), [ex.key]: v },
+            }));
+          return (
+            <div key={ex.key}>
+              <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
+                {ex.label}
+              </label>
+              {ex.type === "select" && (
+                <Select value={value} options={ex.options} onChange={setValue} />
+              )}
+              {ex.type === "color" && (
+                <ColorInput value={value} onChange={setValue} />
+              )}
+              {ex.type === "number" && (
+                <NumberInput
+                  value={value}
+                  min={ex.min}
+                  max={ex.max}
+                  suffix={ex.suffix}
+                  onChange={setValue}
+                />
+              )}
+              {ex.help && (
+                <p className="text-[10px] text-ink-400 mt-1 leading-snug">
+                  {ex.help}
+                </p>
+              )}
+            </div>
+          );
+        })}
 
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 block mb-1">
@@ -519,6 +553,117 @@ function SingleImage({ image, onPick, onClear }) {
         onChange={(e) => onPick(e.target.files?.[0])}
       />
     </>
+  );
+}
+
+// Hex colour input that matches the surrounding ink-50 inputs. Native
+// <input type="color"> would pull in the OS picker which looks alien;
+// instead we show a swatch that triggers it in a hidden child input,
+// plus a free-text hex field next to it.
+function ColorInput({ value, onChange }) {
+  const safe = /^#([\da-f]{3}|[\da-f]{6})$/i.test(value ?? "")
+    ? value
+    : "#000000";
+  const pickerRef = useRef(null);
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+
+  function commitDraft() {
+    const trimmed = draft.trim();
+    const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+    if (/^#([\da-f]{3}|[\da-f]{6})$/i.test(withHash)) {
+      onChange(withHash);
+    } else {
+      setDraft(value ?? "");
+    }
+  }
+
+  return (
+    <div className="nodrag flex items-center gap-2 bg-ink-50 rounded-lg px-2 py-1.5 focus-within:ring-2 focus-within:ring-brand-500/40">
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          pickerRef.current?.click();
+        }}
+        title="Pick a colour"
+        className="w-6 h-6 rounded-md border border-ink-200 shrink-0"
+        style={{ background: safe }}
+      />
+      <input
+        ref={pickerRef}
+        type="color"
+        value={safe}
+        onChange={(e) => onChange(e.target.value)}
+        className="sr-only"
+        tabIndex={-1}
+      />
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commitDraft}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        spellCheck={false}
+        autoComplete="off"
+        className="flex-1 min-w-0 bg-transparent text-[13px] font-mono outline-none text-ink-900 placeholder:text-ink-400"
+        placeholder="#0f172a"
+      />
+    </div>
+  );
+}
+
+function NumberInput({ value, min, max, suffix, onChange }) {
+  const [draft, setDraft] = useState(String(value ?? ""));
+  useEffect(() => {
+    setDraft(String(value ?? ""));
+  }, [value]);
+
+  function commit() {
+    const n = Number(draft);
+    if (Number.isFinite(n)) {
+      const lo = min ?? Number.NEGATIVE_INFINITY;
+      const hi = max ?? Number.POSITIVE_INFINITY;
+      onChange(Math.max(lo, Math.min(hi, n)));
+    } else {
+      setDraft(String(value ?? ""));
+    }
+  }
+
+  return (
+    <div className="nodrag flex items-center gap-1 bg-ink-50 rounded-lg px-2.5 py-2 focus-within:ring-2 focus-within:ring-brand-500/40">
+      <input
+        type="number"
+        inputMode="numeric"
+        value={draft}
+        min={min}
+        max={max}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="flex-1 min-w-0 bg-transparent text-[13px] outline-none text-ink-900 placeholder:text-ink-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      {suffix && (
+        <span className="text-[12px] text-ink-400 shrink-0 select-none">
+          {suffix}
+        </span>
+      )}
+    </div>
   );
 }
 
