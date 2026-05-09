@@ -587,18 +587,6 @@ export const AGENTS = {
     defaultModel: "opus",
     extras: [
       {
-        key: "library",
-        label: "Library style",
-        type: "select",
-        default: "shadcn",
-        options: [
-          { value: "shadcn", label: "shadcn/ui" },
-          { value: "material", label: "Material" },
-          { value: "radix", label: "Radix" },
-          { value: "tailwind", label: "Tailwind base" },
-        ],
-      },
-      {
         key: "primaryColor",
         label: "Primary colour",
         type: "color",
