@@ -1351,8 +1351,16 @@ function PreviewsCopyButton({ matrix, componentName, library }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
-      const jsx = buildComponentMatrixJsx(matrix, componentName, library);
-      await navigator.clipboard.writeText(jsx);
+      // Prefer the raw shadcn TSX (attached to the matrix when the live
+      // registry fetch succeeded) so the copy is the actual React
+      // component source — `cva`, `forwardRef`, semantic Tailwind tokens
+      // and all — followed by an auto-generated usage block exercising
+      // every variant. Falls back to the resolved matrix JSX (for the
+      // Figma plugin) when no shadcn source is available.
+      const code = matrix?.source
+        ? buildShadcnComponentExport(matrix, componentName)
+        : buildComponentMatrixJsx(matrix, componentName, library);
+      await navigator.clipboard.writeText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     } catch {
@@ -1640,6 +1648,60 @@ function inlineSpinnerSvg(size, color) {
 // straight into the "React (Tailwind) to Design" Figma plugin, every
 // cell turns into a named frame with the correct fill, padding, and
 // state styling baked in.
+// Compose the "real" shadcn React export: the raw component TSX from
+// the registry, followed by a usage block showing every variant/size
+// combination. This is what `Copy code` emits whenever the live shadcn
+// fetcher attached `matrix.source` — i.e. the user gets paste-ready
+// React source for their codebase, not a resolved matrix JSX grid.
+function buildShadcnComponentExport(matrix, componentName) {
+  const tsx = String(matrix?.source || "").trim();
+  if (!tsx) return "";
+
+  const slug = String(componentName || matrix?.archetype || "Component")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+  const exportName = (slug.charAt(0).toUpperCase() + slug.slice(1)) || "Component";
+  const showcaseName = `${exportName}Showcase`;
+  const url = matrix?.sourceUrl || "https://ui.shadcn.com";
+  const label = matrix?.label || componentName || exportName;
+
+  const variants = (matrix?.rowGroups ?? []).map((g) => g.id);
+  const sizes = (matrix?.rowSubItems ?? []).map((s) => s.id);
+  const hasMultipleSizes = sizes.length > 1;
+
+  const usageRows = variants.map((v) => {
+    const cells = (hasMultipleSizes ? sizes : ["default"]).map((sz) => {
+      const sizeAttr = hasMultipleSizes && sz !== "default" ? ` size="${sz}"` : "";
+      return `        <${exportName} variant="${v}"${sizeAttr}>${label}</${exportName}>`;
+    });
+    return cells.join("\n");
+  });
+
+  const showcase = [
+    `// Usage — drop ${slug}.tsx into components/ui/ then render:`,
+    `export function ${showcaseName}() {`,
+    `  return (`,
+    `    <div className="flex flex-col gap-3">`,
+    `      <div className="flex flex-wrap items-center gap-2">`,
+    usageRows.join("\n      </div>\n      <div className=\"flex flex-wrap items-center gap-2\">\n"),
+    `      </div>`,
+    `    </div>`,
+    `  );`,
+    `}`,
+  ].join("\n");
+
+  return [
+    `// shadcn/ui — ${exportName}`,
+    `// Source: ${url}`,
+    `// Paste the component below into components/ui/${slug}.tsx`,
+    "",
+    tsx,
+    "",
+    showcase,
+    "",
+  ].join("\n");
+}
+
 function buildComponentMatrixJsx(matrix, componentName, library) {
   const archetype = matrix.archetype || "button";
   const label = matrix.label || componentName;
