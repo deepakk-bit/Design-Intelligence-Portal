@@ -144,6 +144,15 @@ export default function OutputNode({ id, data, selected }) {
             {def?.name ?? "Output"} · {meta.sub}
           </div>
         </div>
+        {/* Card-header Copy code, only on the matrix previews card. Keeps
+            the primary CTA at eye-level instead of buried in the body. */}
+        {kind === "previews" && result?.matrix && (
+          <PreviewsCopyButton
+            matrix={result.matrix}
+            componentName={result.componentName ?? "Component"}
+            library={result.library ?? "shadcn"}
+          />
+        )}
         <button
           onClick={() => removeNode(id)}
           aria-label={`Delete ${meta.label} output`}
@@ -1293,61 +1302,35 @@ function PreviewsBody({ result }) {
   // Two artifacts share the same matrix tokens:
   //   - HTML drives the in-canvas iframe preview (so what you see is a
   //     faithful render of what the plugin will produce).
-  //   - JSX/Tailwind is what the user actually copies — it's the format
-  //     "React (Tailwind) to Design" expects.
+  //   - JSX/Tailwind is what the user copies — generated on click in
+  //     `PreviewsCopyButton`, which lives in the card header now.
   const html = hasMatrix
     ? buildComponentMatrixHtml(matrix, componentName, library)
     : "";
-  const jsx = hasMatrix
-    ? buildComponentMatrixJsx(matrix, componentName, library)
-    : "";
-
-  const [copied, setCopied] = useState(false);
-  async function copyCode() {
-    try {
-      await navigator.clipboard.writeText(jsx);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
-    } catch {
-      /* clipboard blocked */
-    }
-  }
 
   const srcDoc = html;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 text-[12px] text-ink-500">
         <div className="min-w-0">
-          <div className="text-[12px] text-ink-500">
-            <span className="font-semibold text-ink-900">{componentName}</span>
-            <span className="mx-1.5">·</span>
-            <span className="font-mono text-[11px] bg-ink-100 rounded px-1.5 py-0.5">
-              {library}
-            </span>
-            <span className="ml-2 text-[11px] text-ink-500">
-              {totalCells} cell{totalCells === 1 ? "" : "s"} ·{" "}
-              {matrix.rowGroups.length}×{matrix.rowSubItems.length}×
-              {matrix.columns.length}
-            </span>
-          </div>
+          <span className="font-semibold text-ink-900">{componentName}</span>
+          <span className="mx-1.5">·</span>
+          <span className="font-mono text-[11px] bg-ink-100 rounded px-1.5 py-0.5">
+            {library}
+          </span>
+          <span className="ml-2 text-[11px] text-ink-500">
+            {totalCells} cell{totalCells === 1 ? "" : "s"} ·{" "}
+            {matrix.rowGroups.length}×{matrix.rowSubItems.length}×
+            {matrix.columns.length}
+          </span>
         </div>
-        <button
-          onClick={copyCode}
-          title="Copy React + Tailwind code"
-          className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded px-2.5 py-1.5 shrink-0 transition ${
-            copied
-              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-              : "bg-brand-500 hover:bg-brand-600 text-white"
-          }`}
-        >
-          {copied ? <Check size={12} /> : <Copy size={12} />}
-          {copied ? "Copied" : "Copy code"}
-        </button>
       </div>
 
       <p className="text-[11px] text-ink-500 leading-snug">
-        Open the{" "}
+        Hit{" "}
+        <span className="font-medium text-ink-900">Copy code</span> in the
+        card header, then open the{" "}
         <span className="font-medium text-ink-900">
           React (Tailwind) to Design
         </span>{" "}
@@ -1357,6 +1340,47 @@ function PreviewsBody({ result }) {
 
       <MatrixPreview srcDoc={srcDoc} title={`${componentName} matrix`} />
     </div>
+  );
+}
+
+// Standalone Copy-code button rendered in the OutputNode card header
+// for the previews kind, so the primary CTA is always visible without
+// scrolling the body. Recomputes the JSX on click — no shared state
+// with PreviewsBody needed.
+function PreviewsCopyButton({ matrix, componentName, library }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      const jsx = buildComponentMatrixJsx(matrix, componentName, library);
+      await navigator.clipboard.writeText(jsx);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+  return (
+    <button
+      onClick={copy}
+      title="Copy React + Tailwind code"
+      aria-label={
+        copied
+          ? "Code copied to clipboard"
+          : "Copy React and Tailwind code for this matrix"
+      }
+      className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+        copied
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-brand-500 hover:bg-brand-600 text-white"
+      }`}
+    >
+      {copied ? (
+        <Check size={13} aria-hidden="true" />
+      ) : (
+        <Copy size={13} aria-hidden="true" />
+      )}
+      {copied ? "Copied" : "Copy code"}
+    </button>
   );
 }
 
