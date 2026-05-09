@@ -55,6 +55,14 @@ Required fields:
 - `fix` — one-sentence actionable change a developer can apply directly.
   Skip filler. Example: "Increase horizontal padding to 16px." Keep it
   short — the design/built pair already explains the problem.
+- `point` — `{ x, y }` with both values **between 0 and 1**, normalized
+  to the **BUILT image** dimensions (top-left = `0,0`; bottom-right =
+  `1,1`). Place the point at the visual centre of the offending element
+  on the built screenshot — that's where a pin will be drawn so the
+  designer can see where the issue lives. Example: a button in the
+  top-right would be roughly `{ x: 0.85, y: 0.08 }`. Pick *one* point
+  per issue even if the issue spans an area; aim for the element's
+  middle.
 
 Do NOT include a long `description` field. The `designed`/`built` pair plus
 `fix` already explains the issue — extra prose is what we are removing.

@@ -31,8 +31,15 @@ export default function RightPanel() {
   const node = nodes.find((n) => n.id === selectedId);
 
   return (
-    <div className="absolute top-20 right-4 bottom-20 w-[380px] z-20 bg-white rounded-2xl shadow-floating border border-ink-200 flex flex-col overflow-hidden">
-      <div className="px-3 py-2 border-b border-ink-100 flex items-center gap-1">
+    <aside
+      aria-label="Chat and properties panel"
+      className="absolute top-20 right-4 bottom-20 w-[380px] z-20 bg-white rounded-2xl shadow-floating border border-ink-200 flex flex-col overflow-hidden"
+    >
+      <div
+        role="tablist"
+        aria-label="Panel sections"
+        className="px-3 py-2 border-b border-ink-100 flex items-center gap-1"
+      >
         <TabBtn active={tab === "chat"} onClick={() => setTab("chat")} icon={MessageSquare}>
           Chat
         </TabBtn>
@@ -46,31 +53,34 @@ export default function RightPanel() {
         <div className="flex-1" />
         <button
           onClick={() => toggle(false)}
-          className="p-1.5 rounded text-ink-400 hover:text-ink-700 hover:bg-ink-100"
+          aria-label="Close panel"
           title="Close panel"
+          className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
         >
-          <X size={14} />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
       {!node && <EmptyState />}
       {node && tab === "chat" && <ChatTab node={node} />}
       {node && tab === "properties" && <PropertiesTab node={node} />}
-    </div>
+    </aside>
   );
 }
 
 function TabBtn({ active, onClick, icon: Icon, children }) {
   return (
     <button
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
         active
           ? "bg-ink-900 text-white"
           : "text-ink-500 hover:text-ink-900 hover:bg-ink-100"
       }`}
     >
-      <Icon size={13} />
+      <Icon size={13} aria-hidden="true" />
       {children}
     </button>
   );
@@ -363,6 +373,16 @@ function ChatTab({ node }) {
         context: agentNode.data.context?.trim() || undefined,
         initialResult: agentNode.data.result?.result,
         messages: wireMessages,
+        // Forward the user's per-node extras so the chat call resolves to
+        // the same model tier they selected (or the agent's default).
+        extras: def.extras
+          ? Object.fromEntries(
+              def.extras.map((ex) => [
+                ex.key,
+                agentNode.data.extras?.[ex.key] ?? ex.default,
+              ]),
+            )
+          : undefined,
         signal: abortRef.current.signal,
       });
 

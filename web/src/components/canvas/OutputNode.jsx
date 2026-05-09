@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Trash2,
@@ -110,8 +110,11 @@ export default function OutputNode({ id, data, selected }) {
 
   if (!result) {
     return (
-      <div className="w-[520px] bg-white rounded-2xl shadow-floating border border-ink-200 p-5 text-sm text-ink-500">
-        No result yet.
+      <div className="w-[520px] bg-white rounded-2xl shadow-floating border border-ink-200 p-5 flex items-center gap-2.5 text-sm text-ink-500">
+        <AlertCircle size={14} aria-hidden="true" className="text-ink-400" />
+        <span>
+          No result yet — run the source agent to populate this card.
+        </span>
       </div>
     );
   }
@@ -127,6 +130,7 @@ export default function OutputNode({ id, data, selected }) {
 
       <div className="px-4 py-3 flex items-center gap-3 border-b border-ink-100 shrink-0">
         <div
+          aria-hidden="true"
           className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0"
           style={{ background: meta.accent }}
         >
@@ -142,10 +146,11 @@ export default function OutputNode({ id, data, selected }) {
         </div>
         <button
           onClick={() => removeNode(id)}
-          className="p-1 rounded text-ink-400 hover:text-red-600 hover:bg-red-50"
+          aria-label={`Delete ${meta.label} output`}
           title="Delete"
+          className="p-1 rounded text-ink-400 hover:text-red-600 hover:bg-red-50 outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
         >
-          <Trash2 size={14} />
+          <Trash2 size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -392,6 +397,17 @@ const CATEGORY_ORDER = [
 
 function QaReviewBody({ nodeId, data, result }) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  // Pull both the DESIGN and BUILT images off the source agent node so
+  // the side-by-side comparison view can render them without duplicating
+  // bytes onto the output node.
+  const builtImage = useCanvasStore((s) => {
+    const src = s.nodes.find((n) => n.id === data.sourceAgentId);
+    return src?.data?.images?.builtImage ?? null;
+  });
+  const designImage = useCanvasStore((s) => {
+    const src = s.nodes.find((n) => n.id === data.sourceAgentId);
+    return src?.data?.images?.designImage ?? null;
+  });
   const sum = result.summary ?? {};
   const verdict = sum.verdict ?? result.verdict ?? {};
   const issues = result.issues ?? [];
@@ -402,6 +418,25 @@ function QaReviewBody({ nodeId, data, result }) {
     (n, _, i) => (fixedSet.has(i) ? n + 1 : n),
     0,
   );
+  const issuesWithPoints = issues.filter(
+    (it) => it.point && typeof it.point.x === "number",
+  );
+
+  // Pin/row linking state. Hovering or clicking either side highlights
+  // its counterpart; clicking a pin also scrolls the matching row into view.
+  const [activeIndex, setActiveIndex] = useState(null);
+  const rowRefsRef = useRef(new Map());
+  function setRowRef(idx, el) {
+    if (el) rowRefsRef.current.set(idx, el);
+    else rowRefsRef.current.delete(idx);
+  }
+  function focusIssue(idx) {
+    setActiveIndex(idx);
+    const el = rowRefsRef.current.get(idx);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
 
   const verdictColor =
     {
@@ -470,6 +505,70 @@ function QaReviewBody({ nodeId, data, result }) {
         )}
       </div>
 
+      {builtImage?.dataUrl && (
+        <div>
+          <SectionLabel
+            icon={ClipboardCheck}
+            color="#9333ea"
+            count={issuesWithPoints.length}
+          >
+            Design vs Built
+          </SectionLabel>
+          <div className="space-y-3">
+            {designImage?.dataUrl ? (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+                    Design
+                  </span>
+                </div>
+                <div className="rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+                  <img
+                    src={designImage.dataUrl}
+                    alt="Design reference"
+                    className="block w-full select-none"
+                    draggable={false}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-ink-200 bg-ink-50/50 p-4 text-[11px] text-ink-400 flex items-center justify-center text-center">
+                Design image not available — agent node may have been
+                deleted.
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+                  Built
+                </span>
+                {issuesWithPoints.length > 0 && (
+                  <span className="text-[10px] text-ink-400">
+                    · {issuesWithPoints.length} pin
+                    {issuesWithPoints.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <AnnotatedBuiltImage
+                image={builtImage}
+                issues={issues}
+                activeIndex={activeIndex}
+                onPinClick={(i) => focusIssue(i)}
+                onPinHover={(i) => setActiveIndex(i)}
+              />
+            </div>
+          </div>
+          {issuesWithPoints.length > 0 && (
+            <p className="text-[10px] text-ink-400 mt-1.5">
+              Pins land on the built image. Click a pin to jump to its
+              issue; hover an issue row to highlight its pin.
+            </p>
+          )}
+        </div>
+      )}
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <SectionLabel
@@ -502,6 +601,9 @@ function QaReviewBody({ nodeId, data, result }) {
             issues={issues}
             fixedSet={fixedSet}
             onToggle={toggleFixed}
+            activeIndex={activeIndex}
+            onRowHover={setActiveIndex}
+            setRowRef={setRowRef}
           />
         )}
       </div>
@@ -555,7 +657,96 @@ function QaReviewBody({ nodeId, data, result }) {
   );
 }
 
-function QaReviewIssueGroups({ issues, fixedSet, onToggle }) {
+// Built screenshot with numbered pins overlaid at each issue's normalised
+// coordinate. The pins are buttons so they're keyboard-focusable; clicking
+// scrolls the matching list row into view, hovering highlights it.
+function AnnotatedBuiltImage({
+  image,
+  issues,
+  activeIndex,
+  onPinClick,
+  onPinHover,
+}) {
+  return (
+    <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+      <img
+        src={image.dataUrl}
+        alt="Built screenshot annotated with QA issue pins"
+        className="block w-full select-none"
+        draggable={false}
+      />
+      <div className="absolute inset-0 pointer-events-none">
+        {issues.map((issue, i) => {
+          if (!issue.point || typeof issue.point.x !== "number") return null;
+          return (
+            <Pin
+              key={i}
+              number={i + 1}
+              severity={issue.severity}
+              x={issue.point.x}
+              y={issue.point.y}
+              active={activeIndex === i}
+              dim={activeIndex != null && activeIndex !== i}
+              onClick={() => onPinClick?.(i)}
+              onMouseEnter={() => onPinHover?.(i)}
+              onMouseLeave={() => onPinHover?.(null)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Pin({
+  number,
+  severity,
+  x,
+  y,
+  active,
+  dim,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+}) {
+  const sev = SEVERITY[severity] ?? SEVERITY.low;
+  // Clamp to keep pins inside the image even if the model emits a value
+  // a hair past 1.
+  const cx = Math.max(0, Math.min(1, x)) * 100;
+  const cy = Math.max(0, Math.min(1, y)) * 100;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      title={`Issue #${number} · ${sev.label}`}
+      style={{
+        left: `${cx}%`,
+        top: `${cy}%`,
+        background: sev.color,
+      }}
+      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-white text-[11px] font-semibold tabular-nums flex items-center justify-center shadow-md ring-2 ring-white outline-none transition-all duration-150 ${
+        active
+          ? "scale-125 z-20 ring-brand-500"
+          : dim
+            ? "opacity-60 hover:opacity-100 hover:scale-110"
+            : "hover:scale-110 z-10"
+      }`}
+    >
+      {number}
+    </button>
+  );
+}
+
+function QaReviewIssueGroups({
+  issues,
+  fixedSet,
+  onToggle,
+  activeIndex,
+  onRowHover,
+  setRowRef,
+}) {
   // Bucket issues by category, preserving the original index so checkbox
   // state stays aligned with the model's flat array.
   const byCategory = new Map();
@@ -592,6 +783,10 @@ function QaReviewIssueGroups({ issues, fixedSet, onToggle }) {
                   issue={issue}
                   fixed={fixedSet.has(index)}
                   onToggle={() => onToggle(index)}
+                  active={activeIndex === index}
+                  onMouseEnter={() => onRowHover?.(index)}
+                  onMouseLeave={() => onRowHover?.(null)}
+                  cardRef={(el) => setRowRef?.(index, el)}
                 />
               ))}
             </div>
@@ -602,14 +797,28 @@ function QaReviewIssueGroups({ issues, fixedSet, onToggle }) {
   );
 }
 
-function QaReviewIssueCard({ index, issue, fixed, onToggle }) {
+function QaReviewIssueCard({
+  index,
+  issue,
+  fixed,
+  onToggle,
+  active,
+  onMouseEnter,
+  onMouseLeave,
+  cardRef,
+}) {
   const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
   return (
     <div
+      ref={cardRef}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className={`text-left rounded-lg border bg-white text-[12px] text-ink-700 leading-snug overflow-hidden transition ${
         fixed
           ? "border-emerald-200 bg-emerald-50/40 opacity-70"
-          : "border-ink-200"
+          : active
+            ? "border-brand-500 ring-2 ring-brand-500/30"
+            : "border-ink-200"
       }`}
     >
       <div className="px-2.5 pt-2 pb-1.5 flex items-center gap-1.5 border-b border-ink-100 bg-ink-50/50">
@@ -1208,10 +1417,11 @@ function MatrixLightbox({ srcDoc, title, onClose }) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close (Escape)"
             title="Close (Esc)"
-            className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+            className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
           >
-            <X size={16} />
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
         <iframe
@@ -2003,10 +2213,11 @@ function ReferenceLightbox({ items, index, onClose, onNavigate }) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close (Escape)"
             title="Close (Esc)"
-            className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+            className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
           >
-            <X size={16} />
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
 

@@ -38,6 +38,7 @@ export async function chatWithAgent({
   messages,
   componentName,
   context,
+  extras,
   signal,
 }) {
   const res = await fetch("/api/chat", {
@@ -51,6 +52,7 @@ export async function chatWithAgent({
       messages,
       componentName,
       context,
+      extras,
     }),
     signal,
   });

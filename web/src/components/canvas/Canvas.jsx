@@ -171,6 +171,40 @@ export default function Canvas() {
           color="#d6dce6"
         />
       </ReactFlow>
+      {nodes.length === 0 && <CanvasEmptyState />}
+    </div>
+  );
+}
+
+// Friendly hint shown over the empty canvas. Pointer events disabled so
+// the user can still drop an agent onto the canvas through the overlay.
+function CanvasEmptyState() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+    >
+      <div className="bg-white/90 backdrop-blur-sm border border-ink-200 rounded-2xl shadow-floating px-6 py-5 text-center max-w-sm">
+        <div className="text-[13px] font-semibold text-ink-900 mb-1">
+          Drop an agent to get started
+        </div>
+        <p className="text-[12px] text-ink-500 leading-snug">
+          Click an agent in the library on the left, or drag one onto this
+          canvas. Each agent is a node you can feed images, run, and chain.
+        </p>
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-ink-400">
+          <kbd className="px-1.5 py-0.5 rounded border border-ink-200 bg-ink-50 font-sans">
+            Space
+          </kbd>
+          <span>+ drag to pan</span>
+          <span aria-hidden="true">·</span>
+          <kbd className="px-1.5 py-0.5 rounded border border-ink-200 bg-ink-50 font-sans">
+            ⌘
+          </kbd>
+          <span>+ scroll to zoom</span>
+        </div>
+      </div>
     </div>
   );
 }

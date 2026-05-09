@@ -6,6 +6,7 @@ import {
   estimateCost,
   cacheHitRate,
   fmtDollars,
+  RATES_OVERRIDDEN,
 } from "../../lib/pricing.js";
 
 // Compact token formatting (12_345 → "12.3k", 1_200_000 → "1.2M").
@@ -135,15 +136,16 @@ export default function UsageChip() {
     <div className="relative" ref={popRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium ${
+        aria-label={`Workspace usage. Estimated ${chipLabel}, ${fmtTokens(totalTokens)} tokens across ${runs} run${runs === 1 ? "" : "s"}. Source of truth is the Anthropic console.`}
+        title={`Estimated cost · ${fmtTokens(totalTokens)} tokens · ${runs} run${runs === 1 ? "" : "s"} · check Anthropic console for billing`}
+        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
           open
             ? "text-brand-600 bg-brand-500/10"
             : "text-ink-700 hover:text-ink-900 hover:bg-ink-100"
         }`}
-        title={`Estimated cost · ${fmtTokens(totalTokens)} tokens · ${runs} runs`}
       >
-        <Activity size={13} />
-        <span className="tabular-nums">{chipLabel}</span>
+        <Activity size={13} aria-hidden="true" />
+        <span className="tabular-nums">~{chipLabel}</span>
       </button>
 
       {open && (
@@ -236,33 +238,50 @@ export default function UsageChip() {
             </div>
           )}
 
-          <div className="border-t border-ink-100 px-4 py-2 flex items-center justify-between bg-ink-50/40">
-            <div className="text-[10px] text-ink-400">
-              Estimate · check Anthropic for billing.
-            </div>
-            <div className="flex items-center gap-3">
-              {history.length > 0 && (
-                <button
-                  onClick={exportCsv}
-                  className="inline-flex items-center gap-1 text-[10px] font-medium text-ink-500 hover:text-ink-900"
-                  title="Export run history as CSV"
+          <div className="border-t border-ink-100 px-4 py-2 bg-ink-50/40 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-ink-500 leading-snug">
+                Local estimate{RATES_OVERRIDDEN ? " (custom rates)" : ""}.{" "}
+                <a
+                  href="https://console.anthropic.com/settings/usage"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-brand-600 hover:text-brand-700 underline underline-offset-2"
                 >
-                  <Download size={10} /> Export
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Reset workspace usage counters and run history? This can't be undone.",
+                  Anthropic console
+                </a>{" "}
+                is the source of truth.
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-ink-400">
+                Token counts match the API exactly.
+              </div>
+              <div className="flex items-center gap-3">
+                {history.length > 0 && (
+                  <button
+                    onClick={exportCsv}
+                    aria-label="Export run history as CSV"
+                    title="Export run history as CSV"
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-ink-500 hover:text-ink-900 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 rounded"
+                  >
+                    <Download size={10} aria-hidden="true" /> Export
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "Reset workspace usage counters and run history? This can't be undone.",
+                      )
                     )
-                  )
-                    resetUsage();
-                }}
-                className="text-[10px] font-medium text-ink-500 hover:text-red-600"
-              >
-                Reset
-              </button>
+                      resetUsage();
+                  }}
+                  className="text-[10px] font-medium text-ink-500 hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 rounded"
+                >
+                  Reset
+                </button>
+              </div>
             </div>
           </div>
         </div>

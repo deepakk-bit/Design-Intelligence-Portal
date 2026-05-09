@@ -9,6 +9,7 @@ import {
   X,
   ChevronDown,
   Check,
+  AlertCircle,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useCanvasStore } from "../../store.js";
@@ -283,10 +284,11 @@ export default function AgentNode({ id, data, selected }) {
         </div>
         <button
           onClick={() => removeNode(id)}
-          className="p-1 rounded text-ink-400 hover:text-red-600 hover:bg-red-50"
+          aria-label={`Delete ${def.name} node`}
           title="Delete node"
+          className="p-1 rounded text-ink-400 hover:text-red-600 hover:bg-red-50 outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
         >
-          <Trash2 size={14} />
+          <Trash2 size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -416,8 +418,16 @@ export default function AgentNode({ id, data, selected }) {
         </div>
 
         {data.error && (
-          <div className="text-xs text-red-600 bg-red-50 rounded-md px-2 py-1.5">
-            {data.error}
+          <div
+            role="alert"
+            className="text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-md px-2.5 py-1.5 flex items-start gap-1.5 leading-snug"
+          >
+            <AlertCircle
+              size={13}
+              aria-hidden="true"
+              className="text-red-600 shrink-0 mt-px"
+            />
+            <span>{data.error}</span>
           </div>
         )}
 
@@ -461,8 +471,32 @@ export default function AgentNode({ id, data, selected }) {
   );
 }
 
+// Listens for clipboard paste events at the document level and forwards
+// the first image-typed item to `onPick` — but only when one of the
+// elements in `targetRefs` is currently focused, so multiple slots on
+// the same node don't all swallow the same paste.
+function usePasteImage(targetRefs, onPick) {
+  useEffect(() => {
+    function handle(e) {
+      const refs = Array.isArray(targetRefs) ? targetRefs : [targetRefs];
+      const focused = refs.some((r) => r.current === document.activeElement);
+      if (!focused) return;
+      const items = Array.from(e.clipboardData?.items ?? []);
+      const imageItem = items.find((it) => it.type?.startsWith("image/"));
+      if (!imageItem) return;
+      e.preventDefault();
+      const file = imageItem.getAsFile();
+      if (file) onPick(file);
+    }
+    document.addEventListener("paste", handle);
+    return () => document.removeEventListener("paste", handle);
+  }, [targetRefs, onPick]);
+}
+
 function ImageSlot({ slot, image, onPick, onClear }) {
   const fileRef = useRef(null);
+  const dropRef = useRef(null);
+  usePasteImage(dropRef, onPick);
   return (
     <div>
       <div className="flex items-baseline justify-between mb-1">
@@ -484,9 +518,11 @@ function ImageSlot({ slot, image, onPick, onClear }) {
           />
           <button
             onClick={onClear}
-            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
+            aria-label={`Remove ${slot.label} image`}
+            title="Remove image"
+            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
           >
-            <X size={11} />
+            <X size={11} aria-hidden="true" />
           </button>
           <div className="absolute bottom-0 inset-x-0 px-2 py-0.5 text-[10px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
             {image.name}
@@ -494,11 +530,14 @@ function ImageSlot({ slot, image, onPick, onClear }) {
         </div>
       ) : (
         <button
+          ref={dropRef}
           onClick={() => fileRef.current?.click()}
-          className="w-full h-[80px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1 text-ink-500 hover:text-brand-600 transition"
+          className="nodrag w-full h-[80px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 focus:outline-none focus:border-brand-500 focus:bg-brand-500/5 flex flex-col items-center justify-center gap-1 text-ink-500 hover:text-brand-600 focus:text-brand-600 transition"
         >
           <ImagePlus size={16} />
-          <span className="text-[11px] font-medium">Drop or click to add</span>
+          <span className="text-[11px] font-medium">
+            Drop, paste, or click
+          </span>
         </button>
       )}
       <input
@@ -514,6 +553,8 @@ function ImageSlot({ slot, image, onPick, onClear }) {
 
 function SingleImage({ image, onPick, onClear }) {
   const fileRef = useRef(null);
+  const dropRef = useRef(null);
+  usePasteImage(dropRef, onPick);
   return (
     <>
       {image ? (
@@ -525,9 +566,11 @@ function SingleImage({ image, onPick, onClear }) {
           />
           <button
             onClick={onClear}
-            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600"
+            aria-label="Remove image"
+            title="Remove image"
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center text-ink-700 hover:text-red-600 outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
           >
-            <X size={12} />
+            <X size={12} aria-hidden="true" />
           </button>
           <div className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white bg-gradient-to-t from-black/60 to-transparent truncate">
             {image.name}
@@ -535,12 +578,13 @@ function SingleImage({ image, onPick, onClear }) {
         </div>
       ) : (
         <button
+          ref={dropRef}
           onClick={() => fileRef.current?.click()}
-          className="w-full h-[120px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 flex flex-col items-center justify-center gap-1.5 text-ink-500 hover:text-brand-600 transition"
+          className="nodrag w-full h-[120px] rounded-lg border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-brand-500/5 focus:outline-none focus:border-brand-500 focus:bg-brand-500/5 flex flex-col items-center justify-center gap-1.5 text-ink-500 hover:text-brand-600 focus:text-brand-600 transition"
         >
           <ImagePlus size={20} />
           <span className="text-xs font-medium">
-            Drop or click to add screenshot
+            Drop, paste, or click to add
           </span>
           <span className="text-[10px] text-ink-400">PNG, JPG, WEBP</span>
         </button>

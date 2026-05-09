@@ -12,45 +12,68 @@ export default function BottomControls() {
   return (
     <>
       {/* Bottom-center: zoom controls */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-white rounded-xl shadow-floating border border-ink-200 px-1.5 py-1 flex items-center gap-0.5">
-        <ZoomBtn onClick={() => zoomOut({ duration: 200 })} title="Zoom out">
-          <Minus size={14} />
+      <div
+        role="toolbar"
+        aria-label="Canvas zoom controls"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-white rounded-xl shadow-floating border border-ink-200 px-1.5 py-1 flex items-center gap-0.5"
+      >
+        <ZoomBtn
+          onClick={() => zoomOut({ duration: 200 })}
+          ariaLabel="Zoom out"
+          title="Zoom out"
+        >
+          <Minus size={14} aria-hidden="true" />
         </ZoomBtn>
         <button
           onClick={() => fitView({ duration: 300, padding: 0.2 })}
-          className="px-2.5 py-1 text-[12px] font-medium text-ink-700 hover:bg-ink-100 rounded-md min-w-[44px]"
+          aria-label={`Current zoom ${zoomPct} percent. Click to fit to screen.`}
           title="Fit to screen"
+          className="px-2.5 py-1 text-[12px] font-medium text-ink-700 hover:bg-ink-100 rounded-md min-w-[44px] outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
         >
           {zoomPct}%
         </button>
-        <ZoomBtn onClick={() => zoomIn({ duration: 200 })} title="Zoom in">
-          <Plus size={14} />
+        <ZoomBtn
+          onClick={() => zoomIn({ duration: 200 })}
+          ariaLabel="Zoom in"
+          title="Zoom in"
+        >
+          <Plus size={14} aria-hidden="true" />
         </ZoomBtn>
-        <div className="w-px h-5 bg-ink-200 mx-0.5" />
-        <ZoomBtn onClick={() => fitView({ duration: 300, padding: 0.2 })} title="Fit view">
-          <Maximize2 size={13} />
+        <div className="w-px h-5 bg-ink-200 mx-0.5" aria-hidden="true" />
+        <ZoomBtn
+          onClick={() => fitView({ duration: 300, padding: 0.2 })}
+          ariaLabel="Fit canvas to view"
+          title="Fit view"
+        >
+          <Maximize2 size={13} aria-hidden="true" />
         </ZoomBtn>
       </div>
 
       {/* Bottom-right: user pill */}
       <div className="absolute bottom-4 right-4 z-30 bg-white rounded-xl shadow-floating border border-ink-200 pl-2 pr-3 py-1.5 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white text-[11px] font-semibold flex items-center justify-center">
+        <div
+          aria-hidden="true"
+          className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white text-[11px] font-semibold flex items-center justify-center"
+        >
           {(userEmail[0] ?? "?").toUpperCase()}
         </div>
         <div className="text-[11px] text-ink-700 hidden sm:flex items-center gap-1">
-          <Mail size={11} className="text-ink-400" /> {userEmail}
+          <Mail size={11} className="text-ink-400" aria-hidden="true" />{" "}
+          <span className="sr-only">Signed in as </span>
+          {userEmail}
         </div>
       </div>
     </>
   );
 }
 
-function ZoomBtn({ children, onClick, title }) {
+function ZoomBtn({ children, onClick, title, ariaLabel }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      className="p-1.5 rounded-md text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+      aria-label={ariaLabel ?? title}
+      className="p-1.5 rounded-md text-ink-500 hover:text-ink-900 hover:bg-ink-100 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
     >
       {children}
     </button>

@@ -437,6 +437,7 @@ const qaReviewSchema = {
           "designed",
           "built",
           "fix",
+          "point",
         ],
         properties: {
           title: {
@@ -484,6 +485,17 @@ const qaReviewSchema = {
             type: "string",
             description:
               "One-sentence actionable change a developer can apply.",
+          },
+          point: {
+            type: "object",
+            additionalProperties: false,
+            required: ["x", "y"],
+            description:
+              "Normalised pin coordinate on the BUILT image (top-left = 0,0; bottom-right = 1,1). The frontend draws a numbered pin here so the designer can see where each issue lives.",
+            properties: {
+              x: { type: "number", minimum: 0, maximum: 1 },
+              y: { type: "number", minimum: 0, maximum: 1 },
+            },
           },
         },
       },
@@ -542,6 +554,24 @@ export const AGENTS = {
     id: "interaction",
     name: "Component Interaction Analyst",
     inputs: ["image"],
+    // Sonnet by default — Opus on demand for deep critique. The toggle is
+    // declared as a transient extra so it appears in the UI but is excluded
+    // from the user prompt (it's a runtime config, not prompt input).
+    defaultModel: "claude-sonnet-4-7",
+    extras: [
+      {
+        key: "modelTier",
+        label: "Quality",
+        type: "select",
+        default: "claude-sonnet-4-7",
+        transient: true,
+        options: [
+          { value: "claude-sonnet-4-7", label: "Standard · Sonnet" },
+          { value: "claude-opus-4-7", label: "High · Opus (deeper critique)" },
+        ],
+        help: "Standard handles most reviews. Use High for senior/handoff-grade critiques.",
+      },
+    ],
     systemPrompt: readPrompt("interaction-analyst.md"),
     schema: interactionAnalystSchema,
     userInstruction:
@@ -551,6 +581,7 @@ export const AGENTS = {
     id: "states-variants",
     name: "States & Variants Generator",
     inputs: ["text"],
+    defaultModel: "claude-sonnet-4-7",
     extras: [
       {
         key: "library",
@@ -608,6 +639,8 @@ export const AGENTS = {
     // Refero MCP and returns reference cards. Strict JSON schema is used only
     // for the query-extraction stage.
     kind: "references",
+    // Haiku is plenty for keyword extraction — saves ~95% vs Opus.
+    defaultModel: "claude-haiku-4-7",
     inputs: ["image", "text"],
     inputsRequireOneOf: ["image", "text"],
     systemPrompt: readPrompt("reference-finder.md"),
@@ -640,6 +673,9 @@ export const AGENTS = {
   "dev-handoff": {
     id: "dev-handoff",
     name: "Dev Handoff Checker",
+    // Sonnet handles the structured presence/absence checks well; no need
+    // for Opus here.
+    defaultModel: "claude-sonnet-4-7",
     // Multi-image: up to 4 frames, only the first is required so designers
     // can hand off a single screen or a small set without padding the rest.
     imageSlots: [
@@ -748,6 +784,22 @@ export const AGENTS = {
     name: "QA Review",
     // Multi-image agent: design vs built comparison with a unified report
     // (summary + concise issue log + check coverage + recommendations).
+    // Sonnet by default; Opus toggle for ship-blocking handoffs.
+    defaultModel: "claude-sonnet-4-7",
+    extras: [
+      {
+        key: "modelTier",
+        label: "Quality",
+        type: "select",
+        default: "claude-sonnet-4-7",
+        transient: true,
+        options: [
+          { value: "claude-sonnet-4-7", label: "Standard · Sonnet" },
+          { value: "claude-opus-4-7", label: "High · Opus (critical handoffs)" },
+        ],
+        help: "Standard for routine QA. Use High when the verdict is going to gate a release.",
+      },
+    ],
     imageSlots: [
       {
         key: "designImage",

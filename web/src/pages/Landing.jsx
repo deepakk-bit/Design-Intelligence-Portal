@@ -127,9 +127,13 @@ function NewCard({ onClick }) {
   return (
     <button
       onClick={onClick}
-      className="aspect-[4/3] rounded-2xl border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-white transition flex flex-col items-center justify-center gap-2 text-ink-500 hover:text-brand-600"
+      aria-label="Create new workspace"
+      className="aspect-[4/3] rounded-2xl border-2 border-dashed border-ink-200 hover:border-brand-500 hover:bg-white transition flex flex-col items-center justify-center gap-2 text-ink-500 hover:text-brand-600 outline-none focus-visible:border-brand-500 focus-visible:bg-white focus-visible:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500/40"
     >
-      <div className="w-12 h-12 rounded-full bg-ink-100 flex items-center justify-center">
+      <div
+        aria-hidden="true"
+        className="w-12 h-12 rounded-full bg-ink-100 flex items-center justify-center"
+      >
         <Plus size={20} />
       </div>
       <div className="text-sm font-medium">New workspace</div>
@@ -156,12 +160,14 @@ function WorkspaceCard({
     <div className="group relative bg-white rounded-2xl border border-ink-200 hover:shadow-floating-lg hover:border-ink-300 transition overflow-hidden">
       <button
         onClick={onOpen}
-        className="block w-full aspect-[4/3] bg-gradient-to-br from-ink-50 to-ink-100 relative"
+        aria-label={`Open workspace ${ws.name}`}
+        className="block w-full aspect-[4/3] bg-gradient-to-br from-ink-50 to-ink-100 relative outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-inset"
       >
         {ws.thumbnail ? (
           <img
             src={ws.thumbnail}
             alt=""
+            aria-hidden="true"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -209,17 +215,25 @@ function WorkspaceCard({
         <div className="relative">
           <button
             onClick={onMenuToggle}
-            className="p-1.5 rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-100 opacity-0 group-hover:opacity-100 transition"
+            aria-label={`Workspace actions for ${ws.name}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            title="Workspace actions"
+            className="p-1.5 rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-100 outline-none transition opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand-500/40"
           >
-            <MoreHorizontal size={16} />
+            <MoreHorizontal size={16} aria-hidden="true" />
           </button>
           {menuOpen && (
             <>
               <div
                 className="fixed inset-0 z-10"
                 onClick={onMenuClose}
+                aria-hidden="true"
               />
-              <div className="absolute right-0 top-8 z-20 w-40 bg-white rounded-lg shadow-floating-lg border border-ink-200 py-1 text-sm">
+              <div
+                role="menu"
+                className="absolute right-0 top-8 z-20 w-40 bg-white rounded-lg shadow-floating-lg border border-ink-200 py-1 text-sm"
+              >
                 <MenuItem icon={Pencil} onClick={onStartRename}>
                   Rename
                 </MenuItem>
@@ -242,11 +256,12 @@ function MenuItem({ icon: Icon, children, onClick, danger }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-ink-50 ${
+      role="menuitem"
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left outline-none focus-visible:bg-ink-50 hover:bg-ink-50 ${
         danger ? "text-red-600" : "text-ink-700"
       }`}
     >
-      <Icon size={14} />
+      <Icon size={14} aria-hidden="true" />
       {children}
     </button>
   );
