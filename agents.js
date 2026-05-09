@@ -581,7 +581,10 @@ export const AGENTS = {
     id: "states-variants",
     name: "States & Variants Generator",
     inputs: ["text"],
-    defaultModel: "sonnet",
+    // Opus by default — the matrix output is heavy and benefits from
+    // Opus's design judgment when picking variant tokens, sizes, and
+    // the surrounding text checklist.
+    defaultModel: "opus",
     extras: [
       {
         key: "library",
