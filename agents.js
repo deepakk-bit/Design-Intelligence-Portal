@@ -557,17 +557,17 @@ export const AGENTS = {
     // Sonnet by default — Opus on demand for deep critique. The toggle is
     // declared as a transient extra so it appears in the UI but is excluded
     // from the user prompt (it's a runtime config, not prompt input).
-    defaultModel: "claude-sonnet-4-7",
+    defaultModel: "sonnet",
     extras: [
       {
         key: "modelTier",
         label: "Quality",
         type: "select",
-        default: "claude-sonnet-4-7",
+        default: "sonnet",
         transient: true,
         options: [
-          { value: "claude-sonnet-4-7", label: "Standard · Sonnet" },
-          { value: "claude-opus-4-7", label: "High · Opus (deeper critique)" },
+          { value: "sonnet", label: "Standard · Sonnet" },
+          { value: "opus", label: "High · Opus (deeper critique)" },
         ],
         help: "Standard handles most reviews. Use High for senior/handoff-grade critiques.",
       },
@@ -581,7 +581,7 @@ export const AGENTS = {
     id: "states-variants",
     name: "States & Variants Generator",
     inputs: ["text"],
-    defaultModel: "claude-sonnet-4-7",
+    defaultModel: "sonnet",
     extras: [
       {
         key: "library",
@@ -640,7 +640,7 @@ export const AGENTS = {
     // for the query-extraction stage.
     kind: "references",
     // Haiku is plenty for keyword extraction — saves ~95% vs Opus.
-    defaultModel: "claude-haiku-4-7",
+    defaultModel: "haiku",
     inputs: ["image", "text"],
     inputsRequireOneOf: ["image", "text"],
     systemPrompt: readPrompt("reference-finder.md"),
@@ -675,7 +675,7 @@ export const AGENTS = {
     name: "Dev Handoff Checker",
     // Sonnet handles the structured presence/absence checks well; no need
     // for Opus here.
-    defaultModel: "claude-sonnet-4-7",
+    defaultModel: "sonnet",
     // Multi-image: up to 4 frames, only the first is required so designers
     // can hand off a single screen or a small set without padding the rest.
     imageSlots: [
@@ -785,7 +785,7 @@ export const AGENTS = {
     // Multi-image agent: design vs built comparison with a unified report
     // (summary + concise issue log + check coverage + recommendations).
     // Sonnet by default; Opus toggle for ship-blocking handoffs.
-    defaultModel: "claude-sonnet-4-7",
+    defaultModel: "sonnet",
     extras: [
       {
         key: "modelTier",
