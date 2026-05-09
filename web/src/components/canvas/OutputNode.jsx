@@ -1674,13 +1674,18 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
   );
 
   // Header row: leading spacers for the variant + size label columns,
-  // then one cell per state column.
+  // then one cell per state column. `shrink-0` is critical — the Figma
+  // plugin's flex resolver (and most React-to-Auto-Layout converters)
+  // compresses children by default, which collapses the column grid
+  // into a single stack. Pinning shrink to 0 preserves widths.
   lines.push(`  <div className="flex items-center">`);
-  lines.push(`    <div className="w-[${VARIANT_LABEL_W}px]"></div>`);
-  lines.push(`    <div className="w-[${SIZE_LABEL_W}px]"></div>`);
+  lines.push(
+    `    <div className="shrink-0 w-[${VARIANT_LABEL_W}px]"></div>`,
+  );
+  lines.push(`    <div className="shrink-0 w-[${SIZE_LABEL_W}px]"></div>`);
   for (const col of columns) {
     lines.push(
-      `    <div className="w-[${COL_W}px] text-center text-[11px] text-violet-400 py-2">${escapeJsxText(col.label)}</div>`,
+      `    <div className="shrink-0 w-[${COL_W}px] text-center text-[11px] text-violet-400 py-2">${escapeJsxText(col.label)}</div>`,
     );
   }
   lines.push(`  </div>`);
@@ -1690,14 +1695,14 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
   for (const grp of rowGroups) {
     lines.push(`  <div className="flex items-stretch">`);
     lines.push(
-      `    <div className="w-[${VARIANT_LABEL_W}px] flex items-center justify-end pr-2 text-[11px] text-violet-400">${escapeJsxText(grp.label)}</div>`,
+      `    <div className="shrink-0 w-[${VARIANT_LABEL_W}px] flex items-center justify-end pr-2 text-[11px] text-violet-400">${escapeJsxText(grp.label)}</div>`,
     );
-    lines.push(`    <div className="flex flex-col">`);
+    lines.push(`    <div className="shrink-0 flex flex-col">`);
 
     for (const sub of rowSubItems) {
       lines.push(`      <div className="flex items-stretch">`);
       lines.push(
-        `        <div className="w-[${SIZE_LABEL_W}px] flex items-center justify-end pr-2 text-[10px] text-violet-400">${escapeJsxText(sub.label)}</div>`,
+        `        <div className="shrink-0 w-[${SIZE_LABEL_W}px] flex items-center justify-end pr-2 text-[10px] text-violet-400">${escapeJsxText(sub.label)}</div>`,
       );
 
       for (const col of columns) {
@@ -1705,7 +1710,7 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
         const skip = skipSet.has(`${grp.id}::${sub.id}::${col.id}`);
         if (skip) {
           lines.push(
-            `        <div data-id="${id}" className="w-[${COL_W}px] h-[${CELL_H}px] border border-dashed border-violet-400 bg-violet-50"></div>`,
+            `        <div data-id="${id}" className="shrink-0 w-[${COL_W}px] h-[${CELL_H}px] border border-dashed border-violet-400 bg-violet-50"></div>`,
           );
         } else {
           const inner = renderArchetypeCellJsx({
@@ -1717,7 +1722,7 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
             glyph,
           });
           lines.push(
-            `        <div data-id="${id}" className="w-[${COL_W}px] h-[${CELL_H}px] border border-dashed border-violet-400 flex items-center justify-center">`,
+            `        <div data-id="${id}" className="shrink-0 w-[${COL_W}px] h-[${CELL_H}px] border border-dashed border-violet-400 flex items-center justify-center">`,
             `          ${inner}`,
             `        </div>`,
           );
