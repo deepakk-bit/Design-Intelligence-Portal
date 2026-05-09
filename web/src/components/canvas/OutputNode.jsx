@@ -1649,55 +1649,55 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
   const columns = matrix.columns ?? [];
   const skipCells = matrix.skipCells ?? [];
 
-  const VARIANT_LABEL_W = 80;
-  const BRACE_W = 22;
+  // Layout constants. We use plain nested flex rows (no CSS grid, no
+  // `grid-template-columns: repeat(...)`, no `row-span-N`) because the
+  // "React (Tailwind) to Design" Figma plugin's resolver doesn't reliably
+  // map those primitives onto Auto Layout — the result in Figma collapses
+  // into a stack of misaligned cells. Flex rows with explicit widths
+  // round-trip cleanly.
+  const VARIANT_LABEL_W = 88;
   const SIZE_LABEL_W = 56;
   const COL_W = 140;
+  const CELL_H = 64;
 
   const skipSet = new Set(
     skipCells.map((s) => `${s.rowGroup}::${s.rowSub}::${s.column}`),
   );
 
-  const gridCols = `${VARIANT_LABEL_W}px_${BRACE_W}px_${SIZE_LABEL_W}px_repeat(${columns.length},${COL_W}px)`;
-
-  // Curly brace path is shape-agnostic — viewBox 22×100 stretches via
-  // preserveAspectRatio="none" so the same path fits any group height.
-  const bracePath = `M ${BRACE_W - 4} 0 Q ${BRACE_W - 9} 0 ${BRACE_W - 9} 5 L ${BRACE_W - 9} 45 Q ${BRACE_W - 9} 50 ${BRACE_W - 14} 50 Q ${BRACE_W - 9} 50 ${BRACE_W - 9} 55 L ${BRACE_W - 9} 95 Q ${BRACE_W - 9} 100 ${BRACE_W - 4} 100`;
-  const braceJsx = `<svg viewBox="0 0 ${BRACE_W} 100" preserveAspectRatio="none" className="w-full h-full"><path d="${bracePath}" fill="none" stroke="#a78bfa" strokeWidth="0.75" /></svg>`;
-
   // Emit a bare JSX expression (no `function` wrapper, no comment
-  // preamble). Plugins like React (Tailwind) to Design parse from the
-  // first `<` they find — anything before that risks them giving up
-  // with "No JSX found in the code".
+  // preamble). Plugins parse from the first `<` they find — anything
+  // before that risks "No JSX found in the code".
   const lines = [];
+  lines.push(`<div className="bg-white p-6 inline-block font-sans">`);
   lines.push(
-    `<div className="bg-white p-6 inline-block font-sans">`,
     `  <div className="inline-block px-2 py-1 border border-slate-900 rounded-sm text-[10px] text-slate-900 mb-3">${escapeJsxText(componentName)}</div>`,
-    `  <div className="grid grid-cols-[${gridCols}] items-stretch">`,
   );
 
-  // Column headers row: 3 empty cells then one per column. We use
-  // explicit `<div></div>` over `<div />` so strict JSX parsers don't
-  // misread consecutive self-closing tags.
-  lines.push(`    <div></div><div></div><div></div>`);
+  // Header row: leading spacers for the variant + size label columns,
+  // then one cell per state column.
+  lines.push(`  <div className="flex items-center">`);
+  lines.push(`    <div className="w-[${VARIANT_LABEL_W}px]"></div>`);
+  lines.push(`    <div className="w-[${SIZE_LABEL_W}px]"></div>`);
   for (const col of columns) {
     lines.push(
-      `    <div className="text-center text-[11px] text-violet-400 py-2">${escapeJsxText(col.label)}</div>`,
+      `    <div className="w-[${COL_W}px] text-center text-[11px] text-violet-400 py-2">${escapeJsxText(col.label)}</div>`,
     );
   }
+  lines.push(`  </div>`);
 
+  // One outer flex row per variant group. The variant label sits in the
+  // left column; the right column is a vertical stack of size rows.
   for (const grp of rowGroups) {
-    const span = rowSubItems.length;
+    lines.push(`  <div className="flex items-stretch">`);
     lines.push(
-      `    <div className="row-span-${span} flex items-center justify-end pr-1.5 text-[11px] text-violet-400">${escapeJsxText(grp.label)}</div>`,
+      `    <div className="w-[${VARIANT_LABEL_W}px] flex items-center justify-end pr-2 text-[11px] text-violet-400">${escapeJsxText(grp.label)}</div>`,
     );
-    lines.push(
-      `    <div className="row-span-${span} flex items-stretch py-1">${braceJsx}</div>`,
-    );
+    lines.push(`    <div className="flex flex-col">`);
 
     for (const sub of rowSubItems) {
+      lines.push(`      <div className="flex items-stretch">`);
       lines.push(
-        `    <div className="flex items-center justify-end pr-1.5 text-[10px] text-violet-400">${escapeJsxText(sub.label)}</div>`,
+        `        <div className="w-[${SIZE_LABEL_W}px] flex items-center justify-end pr-2 text-[10px] text-violet-400">${escapeJsxText(sub.label)}</div>`,
       );
 
       for (const col of columns) {
@@ -1705,7 +1705,7 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
         const skip = skipSet.has(`${grp.id}::${sub.id}::${col.id}`);
         if (skip) {
           lines.push(
-            `    <div data-id="${id}" className="border border-dashed border-violet-400 bg-violet-50/50"></div>`,
+            `        <div data-id="${id}" className="w-[${COL_W}px] h-[${CELL_H}px] border border-dashed border-violet-400 bg-violet-50"></div>`,
           );
         } else {
           const inner = renderArchetypeCellJsx({
@@ -1717,17 +1717,19 @@ function buildComponentMatrixJsx(matrix, componentName, library) {
             glyph,
           });
           lines.push(
-            `    <div data-id="${id}" className="border border-dashed border-violet-400 flex items-center justify-center py-3">`,
-            `      ${inner}`,
-            `    </div>`,
+            `        <div data-id="${id}" className="w-[${COL_W}px] h-[${CELL_H}px] border border-dashed border-violet-400 flex items-center justify-center">`,
+            `          ${inner}`,
+            `        </div>`,
           );
         }
       }
+      lines.push(`      </div>`);
     }
+    lines.push(`    </div>`);
+    lines.push(`  </div>`);
   }
 
   lines.push(
-    `  </div>`,
     `  <div className="text-right text-[10px] text-slate-400 mt-2">${escapeJsxText(library)}</div>`,
     `</div>`,
   );
