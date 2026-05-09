@@ -27,6 +27,20 @@ export const AGENT_CATEGORIES = [
         icon: Sparkles,
         accent: "#7c3aed",
         inputs: ["image"],
+        extras: [
+          {
+            key: "modelTier",
+            label: "Quality",
+            type: "select",
+            default: "claude-sonnet-4-7",
+            transient: true,
+            options: [
+              { value: "claude-sonnet-4-7", label: "Standard · Sonnet" },
+              { value: "claude-opus-4-7", label: "High · Opus (deeper critique)" },
+            ],
+            help: "Standard handles most reviews. Use High for senior/handoff-grade critiques.",
+          },
+        ],
       },
     ],
   },
@@ -127,6 +141,20 @@ export const AGENT_CATEGORIES = [
             key: "builtImage",
             label: "Built",
             help: "Screenshot of the implemented UI.",
+          },
+        ],
+        extras: [
+          {
+            key: "modelTier",
+            label: "Quality",
+            type: "select",
+            default: "claude-sonnet-4-7",
+            transient: true,
+            options: [
+              { value: "claude-sonnet-4-7", label: "Standard · Sonnet" },
+              { value: "claude-opus-4-7", label: "High · Opus (critical handoffs)" },
+            ],
+            help: "Standard for routine QA. Use High when the verdict is going to gate a release.",
           },
         ],
       },

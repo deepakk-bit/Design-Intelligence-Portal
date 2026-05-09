@@ -66,10 +66,14 @@ export default function AgentLibraryPanel() {
   }
 
   return (
-    <div className="absolute top-20 left-4 bottom-20 w-[300px] z-20 bg-white rounded-2xl shadow-floating border border-ink-200 flex flex-col overflow-hidden">
+    <aside
+      aria-label="Agent library"
+      className="absolute top-20 left-4 bottom-20 w-[300px] z-20 bg-white rounded-2xl shadow-floating border border-ink-200 flex flex-col overflow-hidden"
+    >
       <div className="px-3 py-3 border-b border-ink-100 flex items-center gap-2">
         <div className="relative flex-1">
           <Search
+            aria-hidden="true"
             size={14}
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400"
           />
@@ -77,15 +81,17 @@ export default function AgentLibraryPanel() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search agents…"
+            aria-label="Search agents"
             className="w-full pl-8 pr-3 py-1.5 text-sm bg-ink-50 rounded-lg outline-none focus:ring-2 focus:ring-brand-500/40"
           />
         </div>
         <button
           onClick={() => toggle(false)}
-          className="p-1.5 rounded text-ink-400 hover:text-ink-700 hover:bg-ink-100"
-          title="Close"
+          aria-label="Close agent library"
+          title="Close agent library"
+          className="p-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
         >
-          <X size={14} />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -117,27 +123,35 @@ export default function AgentLibraryPanel() {
       <div className="px-3 py-2 border-t border-ink-100 text-[11px] text-ink-500">
         Click or drag an agent onto the canvas
       </div>
-    </div>
+    </aside>
   );
 }
 
 function AgentRow({ agent, onDragStart, onClick }) {
   const Icon = agent.icon;
   return (
-    <div
+    <button
+      type="button"
       draggable={!agent.disabled}
       onDragStart={(e) => onDragStart(e, agent)}
       onClick={() => !agent.disabled && onClick?.()}
-      className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg ${
+      disabled={agent.disabled}
+      aria-label={
+        agent.disabled
+          ? `${agent.name} (coming soon)`
+          : `Add ${agent.name} agent to canvas`
+      }
+      title={agent.disabled ? "Coming soon" : "Click or drag to canvas"}
+      className={`group flex items-start gap-2.5 px-2 py-2 rounded-lg w-full text-left outline-none transition focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
         agent.disabled
           ? "opacity-50 cursor-not-allowed"
-          : "cursor-pointer hover:bg-ink-50"
+          : "cursor-pointer hover:bg-ink-50 focus-visible:bg-ink-50"
       }`}
-      title={agent.disabled ? "Coming soon" : "Click or drag to canvas"}
     >
       <div
         className="w-7 h-7 rounded-md flex items-center justify-center text-white shrink-0"
         style={{ background: agent.accent }}
+        aria-hidden="true"
       >
         <Icon size={14} />
       </div>
@@ -149,6 +163,6 @@ function AgentRow({ agent, onDragStart, onClick }) {
           {agent.description}
         </div>
       </div>
-    </div>
+    </button>
   );
 }

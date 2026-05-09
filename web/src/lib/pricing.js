@@ -4,8 +4,18 @@
 // side and is the source of truth. If a model isn't in this table we fall
 // back to Sonnet rates with the "approx." flag set so the UI can surface
 // uncertainty.
+//
+// Override at build time by setting `VITE_RATES_JSON` to a JSON object
+// keyed by model id. Each model entry can override any subset of
+// `input` / `output` / `cacheRead` / `cacheWrite` (rates are $ per
+// million tokens). Example:
+//
+//   VITE_RATES_JSON='{"claude-opus-4-7":{"input":12,"output":60}}'
+//
+// Useful when your account has tier discounts (volume / enterprise /
+// batch API) so the dollar estimate matches your actual bill.
 
-const RATES = {
+const DEFAULT_RATES = {
   // Opus tier — flagship
   "claude-opus-4-7": {
     input: 15,
@@ -52,6 +62,37 @@ const RATES = {
     cacheWrite: 1.0,
   },
 };
+
+// Build-time overrides via `VITE_RATES_JSON`. Merge per-model so the
+// user only needs to specify the rates they want to change.
+function loadOverrides() {
+  try {
+    const raw = import.meta.env.VITE_RATES_JSON;
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    if (typeof console !== "undefined") {
+      console.warn("[pricing] Invalid VITE_RATES_JSON — ignoring.", e);
+    }
+    return {};
+  }
+}
+
+const RATE_OVERRIDES = loadOverrides();
+
+const RATES = (() => {
+  const merged = { ...DEFAULT_RATES };
+  for (const model of Object.keys(RATE_OVERRIDES)) {
+    merged[model] = {
+      ...(DEFAULT_RATES[model] ?? {}),
+      ...RATE_OVERRIDES[model],
+    };
+  }
+  return merged;
+})();
+
+export const RATES_OVERRIDDEN = Object.keys(RATE_OVERRIDES).length > 0;
 
 const DEFAULT_RATE = RATES["claude-sonnet-4-6"];
 
