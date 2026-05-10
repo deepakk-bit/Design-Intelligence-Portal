@@ -15,6 +15,74 @@ import {
   Component,
 } from "lucide-react";
 
+// TailGrids picker options — mirror of lib/tailgrids-manifest.js. The
+// frontend bundle can't import server-only modules, so this list is
+// duplicated and kept in sync manually. Order is significant: the
+// dropdown shows entries in this order, so we group by category.
+const TAILGRIDS_OPTIONS = [
+  // Buttons & actions
+  { value: "button", label: "Buttons — Button" },
+  { value: "button-group", label: "Buttons — Button Group" },
+  { value: "social-button", label: "Buttons — Social Button" },
+  { value: "toggle", label: "Buttons — Toggle" },
+  // Forms & inputs
+  { value: "input", label: "Forms — Input" },
+  { value: "input-group", label: "Forms — Input Group" },
+  { value: "label", label: "Forms — Label" },
+  { value: "field", label: "Forms — Field" },
+  { value: "text-area", label: "Forms — Text Area" },
+  { value: "checkbox", label: "Forms — Checkbox" },
+  { value: "radio-input", label: "Forms — Radio Input" },
+  { value: "native-select", label: "Forms — Native Select" },
+  { value: "select", label: "Forms — Select" },
+  { value: "combobox", label: "Forms — Combobox" },
+  { value: "slider", label: "Forms — Slider" },
+  { value: "otp-input", label: "Forms — OTP Input" },
+  { value: "date-picker", label: "Forms — Date Picker" },
+  { value: "time-field", label: "Forms — Time Field" },
+  { value: "time-picker", label: "Forms — Time Picker" },
+  // Display & content
+  { value: "card", label: "Display — Card" },
+  { value: "badge", label: "Display — Badge" },
+  { value: "avatar", label: "Display — Avatar" },
+  { value: "list", label: "Display — List" },
+  { value: "table", label: "Display — Table" },
+  { value: "chart", label: "Display — Chart" },
+  { value: "separator", label: "Display — Separator" },
+  { value: "aspect-ratio", label: "Display — Aspect Ratio" },
+  { value: "skeleton", label: "Display — Skeleton" },
+  { value: "spinner", label: "Display — Spinner" },
+  { value: "progress", label: "Display — Progress" },
+  // Feedback
+  { value: "alert", label: "Feedback — Alert" },
+  { value: "alert-dialog", label: "Feedback — Alert Dialog" },
+  { value: "toast", label: "Feedback — Toast" },
+  { value: "tooltip", label: "Feedback — Tooltip" },
+  { value: "popover", label: "Feedback — Popover" },
+  // Navigation
+  { value: "navigation-menu", label: "Navigation — Navigation Menu" },
+  { value: "menubar", label: "Navigation — Menubar" },
+  { value: "sidebar", label: "Navigation — Sidebar" },
+  { value: "breadcrumbs", label: "Navigation — Breadcrumbs" },
+  { value: "pagination", label: "Navigation — Pagination" },
+  { value: "tabs", label: "Navigation — Tabs" },
+  { value: "link", label: "Navigation — Link" },
+  { value: "command", label: "Navigation — Command" },
+  // Overlays
+  { value: "dialog", label: "Overlays — Dialog" },
+  { value: "drawer", label: "Overlays — Drawer" },
+  { value: "sheet", label: "Overlays — Sheet" },
+  { value: "dropdown", label: "Overlays — Dropdown" },
+  { value: "context-menu", label: "Overlays — Context Menu" },
+  { value: "hover-card", label: "Overlays — Hover Card" },
+  // Disclosure & layout
+  { value: "accordion", label: "Disclosure — Accordion" },
+  { value: "collapsible", label: "Disclosure — Collapsible" },
+  { value: "carousel", label: "Disclosure — Carousel" },
+  { value: "scroll-area", label: "Disclosure — Scroll Area" },
+  { value: "resizable", label: "Disclosure — Resizable" },
+];
+
 export const AGENT_CATEGORIES = [
   {
     id: "analysis",
@@ -101,7 +169,7 @@ export const AGENT_CATEGORIES = [
         id: "tailgrids",
         name: "Component Generator (TailGrids)",
         description:
-          "Pick a TailGrids component — preview it on the canvas and copy production-ready React + Tailwind JSX for the Figma React (Tailwind) to Design plugin.",
+          "Pick a TailGrids component — fetched live from the upstream repo. Phase 1 returns the raw .tsx source for direct paste into a TailGrids-configured codebase.",
         icon: Component,
         accent: "#3056D3",
         // No image, no text. The component picker (a select extra) is the
@@ -113,21 +181,14 @@ export const AGENT_CATEGORIES = [
             key: "componentId",
             label: "Component",
             type: "select",
-            default: "primary-button",
-            options: [
-              { value: "primary-button", label: "Primary Button" },
-              { value: "secondary-button", label: "Secondary Button" },
-              { value: "outline-button", label: "Outline Button" },
-              { value: "button-with-icon", label: "Button with Icon" },
-              { value: "rounded-button", label: "Rounded Button" },
-              { value: "card-basic", label: "Basic Card" },
-              { value: "card-with-badge", label: "Card with Badge" },
-              { value: "hero-simple", label: "Simple Hero" },
-              { value: "input-text", label: "Text Input" },
-              { value: "alert-success", label: "Success Alert" },
-              { value: "navbar-simple", label: "Simple Navbar" },
-            ],
-            help: "Pick a TailGrids component to fetch.",
+            default: "button",
+            // Mirror of lib/tailgrids-manifest.js — kept in sync manually
+            // because the frontend bundle and the Node server can't
+            // import the same module. To regenerate: take
+            // TAILGRIDS_COMPONENTS from that file and flatten as
+            // `${category} — ${name}`.
+            options: TAILGRIDS_OPTIONS,
+            help: "Live-fetched from the TailGrids GitHub repo. Plugin-ready JSX preview lands in Phase 2.",
           },
         ],
       },

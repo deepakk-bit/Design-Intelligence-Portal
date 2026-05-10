@@ -227,14 +227,12 @@ export default function AgentNode({ id, data, selected }) {
           has: Array.isArray(r.references) && r.references.length > 0,
         },
         {
-          // TailGrids component generator output: a single resolved
-          // component (html + jsx) rendered as a live preview with a
-          // Copy-JSX CTA. Detected by the presence of r.tailgrids.html.
+          // TailGrids Component Generator output. Phase 1: the agent
+          // returns the raw .tsx source for the picked component; the
+          // body shows it with a Phase 2 placeholder for the visual
+          // preview. Detected by the presence of r.tailgrids.source.
           kind: "tailgrids",
-          has:
-            !!r.tailgrids &&
-            typeof r.tailgrids.html === "string" &&
-            typeof r.tailgrids.jsx === "string",
+          has: !!r.tailgrids && typeof r.tailgrids.source === "string",
         },
       ].filter((k) => k.has);
 
