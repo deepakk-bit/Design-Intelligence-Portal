@@ -12,6 +12,7 @@ import {
   Compass,
   ClipboardCheck,
   ClipboardList,
+  Component,
 } from "lucide-react";
 
 export const AGENT_CATEGORIES = [
@@ -87,6 +88,46 @@ export const AGENT_CATEGORIES = [
               { value: "geist", label: "Geist" },
               { value: "manrope", label: "Manrope" },
             ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "components",
+    label: "Components",
+    agents: [
+      {
+        id: "tailgrids",
+        name: "Component Generator (TailGrids)",
+        description:
+          "Pick a TailGrids component — preview it on the canvas and copy production-ready React + Tailwind JSX for the Figma React (Tailwind) to Design plugin.",
+        icon: Component,
+        accent: "#3056D3",
+        // No image, no text. The component picker (a select extra) is the
+        // only input. Setting inputs: [] tells AgentNode not to render the
+        // image dropzone or component-name field.
+        inputs: [],
+        extras: [
+          {
+            key: "componentId",
+            label: "Component",
+            type: "select",
+            default: "primary-button",
+            options: [
+              { value: "primary-button", label: "Primary Button" },
+              { value: "secondary-button", label: "Secondary Button" },
+              { value: "outline-button", label: "Outline Button" },
+              { value: "button-with-icon", label: "Button with Icon" },
+              { value: "rounded-button", label: "Rounded Button" },
+              { value: "card-basic", label: "Basic Card" },
+              { value: "card-with-badge", label: "Card with Badge" },
+              { value: "hero-simple", label: "Simple Hero" },
+              { value: "input-text", label: "Text Input" },
+              { value: "alert-success", label: "Success Alert" },
+              { value: "navbar-simple", label: "Simple Navbar" },
+            ],
+            help: "Pick a TailGrids component to fetch.",
           },
         ],
       },

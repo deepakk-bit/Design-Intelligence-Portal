@@ -808,6 +808,48 @@ export const AGENTS = {
     userInstruction:
       "Compare the design (image 1) with the built implementation (image 2). Produce the unified QA review JSON only — no prose.",
   },
+  tailgrids: {
+    id: "tailgrids",
+    name: "Component Generator (TailGrids)",
+    // Special pipeline: no model call. The server resolves the picked
+    // component id against our TailGrids library and returns the
+    // converted HTML + JSX directly. We still hang off the analyze
+    // endpoint so the canvas plumbing is uniform with other agents.
+    kind: "tailgrids",
+    // No image, no text. The component is picked from the extras select
+    // — the picker is the only "input" needed. inputs: [] also skips
+    // the analyze handler's "componentName required" validation.
+    inputs: [],
+    // Component picker is the only required input. We surface it as a
+    // select extra because the set of components is fixed — keeps the
+    // UI honest about what's available.
+    extras: [
+      {
+        key: "componentId",
+        label: "Component",
+        type: "select",
+        default: "primary-button",
+        options: [
+          { value: "primary-button", label: "Primary Button" },
+          { value: "secondary-button", label: "Secondary Button" },
+          { value: "outline-button", label: "Outline Button" },
+          { value: "button-with-icon", label: "Button with Icon" },
+          { value: "rounded-button", label: "Rounded Button" },
+          { value: "card-basic", label: "Basic Card" },
+          { value: "card-with-badge", label: "Card with Badge" },
+          { value: "hero-simple", label: "Simple Hero" },
+          { value: "input-text", label: "Text Input" },
+          { value: "alert-success", label: "Success Alert" },
+          { value: "navbar-simple", label: "Simple Navbar" },
+        ],
+        help: "Pick a TailGrids component. The HTML is fetched, converted to JSX with Tailwind arbitrary-value classes, and shown in the preview.",
+      },
+    ],
+    // No prompt, no schema — but the analyze handler validates these on
+    // every agent, so we provide empty strings to keep it happy.
+    systemPrompt: "",
+    userInstruction: "",
+  },
 };
 
 export function getAgent(id) {
