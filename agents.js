@@ -1,10 +1,20 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { listTailgridsComponents } from "./lib/tailgrids-manifest.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const readPrompt = (file) =>
   readFileSync(join(__dirname, "prompts", file), "utf8");
+
+// Picker options for the TailGrids agent. Derived once at module load
+// from the manifest; the picker stays in sync with what the fetcher
+// can resolve. Group by category so the dropdown stays browseable as
+// the list grows past 50 entries.
+const TAILGRIDS_OPTIONS = listTailgridsComponents().map((c) => ({
+  value: c.id,
+  label: `${c.category} — ${c.name}`,
+}));
 
 const interactionAnalystSchema = {
   type: "object",
@@ -828,21 +838,9 @@ export const AGENTS = {
         key: "componentId",
         label: "Component",
         type: "select",
-        default: "primary-button",
-        options: [
-          { value: "primary-button", label: "Primary Button" },
-          { value: "secondary-button", label: "Secondary Button" },
-          { value: "outline-button", label: "Outline Button" },
-          { value: "button-with-icon", label: "Button with Icon" },
-          { value: "rounded-button", label: "Rounded Button" },
-          { value: "card-basic", label: "Basic Card" },
-          { value: "card-with-badge", label: "Card with Badge" },
-          { value: "hero-simple", label: "Simple Hero" },
-          { value: "input-text", label: "Text Input" },
-          { value: "alert-success", label: "Success Alert" },
-          { value: "navbar-simple", label: "Simple Navbar" },
-        ],
-        help: "Pick a TailGrids component. The HTML is fetched, converted to JSX with Tailwind arbitrary-value classes, and shown in the preview.",
+        default: "button",
+        options: TAILGRIDS_OPTIONS,
+        help: "Pick a TailGrids component — fetched live from the upstream repo. Phase 1 returns the raw .tsx source. Plugin-ready JSX preview lands in Phase 2.",
       },
     ],
     // No prompt, no schema — but the analyze handler validates these on
