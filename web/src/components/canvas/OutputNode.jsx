@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Compass,
+  Component,
   Copy,
   Download,
   ExternalLink,
@@ -85,6 +86,12 @@ const KINDS = {
     accent: "#0891b2",
     sub: "Real product screens via Refero",
   },
+  tailgrids: {
+    label: "Component (TailGrids)",
+    icon: Component,
+    accent: "#3056D3",
+    sub: "Live preview + React (Tailwind) JSX",
+  },
 };
 
 const SEVERITY = {
@@ -153,6 +160,9 @@ export default function OutputNode({ id, data, selected }) {
             library={result.library ?? "shadcn"}
           />
         )}
+        {kind === "tailgrids" && result?.tailgrids?.jsx && (
+          <TailgridsCopyButton jsx={result.tailgrids.jsx} />
+        )}
         <button
           onClick={() => removeNode(id)}
           aria-label={`Delete ${meta.label} output`}
@@ -178,6 +188,7 @@ export default function OutputNode({ id, data, selected }) {
           <HandoffBody nodeId={id} data={data} result={result} />
         )}
         {kind === "references" && <ReferencesBody result={result} />}
+        {kind === "tailgrids" && <TailgridsBody result={result} />}
       </div>
     </div>
   );
@@ -1465,6 +1476,132 @@ function MatrixLightbox({ srcDoc, title, onClose }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+// --- TailGrids component output ----------------------------------------
+
+// Body for the TailGrids Component Generator output card. Shows the
+// resolved HTML in an iframe (with Tailwind CDN so the arbitrary-value
+// classes paint), plus a hint pointing to the Copy-code header CTA.
+function TailgridsBody({ result }) {
+  const tg = result?.tailgrids;
+  if (!tg || typeof tg.html !== "string") {
+    return (
+      <div className="text-[12px] text-ink-400 italic">
+        No component produced for this run.
+      </div>
+    );
+  }
+
+  // Self-contained srcDoc: Tailwind from the JIT CDN resolves all the
+  // arbitrary-value classes our converter emits. Centered with a
+  // generous breathing area so the component sits on a clean stage —
+  // designers can read proportion at a glance.
+  const srcDoc = buildTailgridsPreviewHtml(tg.html);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 text-[12px] text-ink-500">
+        <div className="min-w-0">
+          <span className="font-semibold text-ink-900">{tg.name}</span>
+          {tg.category && (
+            <>
+              <span className="mx-1.5">·</span>
+              <span className="font-mono text-[11px] bg-ink-100 rounded px-1.5 py-0.5">
+                {tg.category}
+              </span>
+            </>
+          )}
+          <span className="ml-2 text-[11px] text-ink-500">TailGrids</span>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-ink-500 leading-snug">
+        Hit{" "}
+        <span className="font-medium text-ink-900">Copy code</span> in the
+        card header, then open the{" "}
+        <span className="font-medium text-ink-900">
+          React (Tailwind) to Design
+        </span>{" "}
+        plugin in Figma and paste — the component imports with its
+        resolved colours, sizes, and SVG icons intact.
+      </p>
+
+      <MatrixPreview srcDoc={srcDoc} title={`${tg.name} preview`} />
+    </div>
+  );
+}
+
+// Wrap the component HTML in a self-contained document with the
+// Tailwind play CDN. Arbitrary values like `bg-[#3056D3]` resolve at
+// runtime, so the iframe paints a faithful preview of what the JSX
+// will produce in Figma (modulo plugin-specific quirks).
+function buildTailgridsPreviewHtml(componentHtml) {
+  return [
+    "<!doctype html>",
+    "<html lang=\"en\">",
+    "<head>",
+    "<meta charset=\"utf-8\" />",
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />",
+    "<script src=\"https://cdn.tailwindcss.com\"></script>",
+    "<style>",
+    "  html, body { margin: 0; padding: 0; background: #f8fafc; }",
+    "  .stage {",
+    "    display: flex; align-items: center; justify-content: center;",
+    "    min-height: 100vh; padding: 32px 24px; box-sizing: border-box;",
+    "  }",
+    "  .stage > * { max-width: 100%; }",
+    "</style>",
+    "</head>",
+    "<body>",
+    "  <div class=\"stage\">",
+    componentHtml,
+    "  </div>",
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
+// Standalone Copy-JSX button rendered in the OutputNode card header
+// for the tailgrids kind. Mirrors PreviewsCopyButton — same affordance,
+// different payload. Copies the converted JSX straight to the clipboard.
+function TailgridsCopyButton({ jsx }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(jsx);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+  return (
+    <button
+      onClick={copy}
+      title="Copy React + Tailwind code"
+      aria-label={
+        copied
+          ? "Code copied to clipboard"
+          : "Copy React and Tailwind code for this component"
+      }
+      className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+        copied
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-brand-500 text-white hover:bg-brand-600"
+      }`}
+    >
+      {copied ? (
+        <>
+          <Check size={13} aria-hidden="true" /> Copied
+        </>
+      ) : (
+        <>
+          <Copy size={13} aria-hidden="true" /> Copy code
+        </>
+      )}
+    </button>
   );
 }
 

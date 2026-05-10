@@ -226,6 +226,16 @@ export default function AgentNode({ id, data, selected }) {
           kind: "references",
           has: Array.isArray(r.references) && r.references.length > 0,
         },
+        {
+          // TailGrids component generator output: a single resolved
+          // component (html + jsx) rendered as a live preview with a
+          // Copy-JSX CTA. Detected by the presence of r.tailgrids.html.
+          kind: "tailgrids",
+          has:
+            !!r.tailgrids &&
+            typeof r.tailgrids.html === "string" &&
+            typeof r.tailgrids.jsx === "string",
+        },
       ].filter((k) => k.has);
 
       const me = nodes.find((n) => n.id === id);
