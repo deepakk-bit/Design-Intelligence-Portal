@@ -1538,8 +1538,23 @@ function TailgridsBody({ result }) {
       {composed ? (
         <>
           {/* Live preview — Tailwind play CDN inside the iframe handles
-              every arbitrary-value class the composer emitted. Click to
-              expand at full size. */}
+              every arbitrary-value class the composer emitted. The
+              stacked showcase (Default → Variants → Sizes → …) mirrors
+              what tailgrids.com shows on the component's docs page.
+              Click to expand at full size. */}
+          {Array.isArray(tg.sections) && tg.sections.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+              <span className="text-ink-500">Showcase:</span>
+              {tg.sections.map((s, i) => (
+                <span
+                  key={i}
+                  className="font-mono bg-ink-100 text-ink-700 rounded px-1.5 py-0.5"
+                >
+                  {s.label}
+                </span>
+              ))}
+            </div>
+          )}
           <MatrixPreview srcDoc={tg.html} title={`${tg.name} preview`} />
 
           <p className="text-[11px] text-ink-500 leading-snug">

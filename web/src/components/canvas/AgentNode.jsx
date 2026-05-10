@@ -723,6 +723,13 @@ function NumberInput({ value, min, max, suffix, onChange }) {
 // Windows pulls in browser chrome that looks alien next to our rounded
 // `bg-ink-50` inputs, so we render a styled trigger + a small floating
 // menu. Outside-click and Escape close the menu; Enter / Space toggles it.
+// Maximum visible height of the dropdown listbox. Long lists (the
+// TailGrids picker is 54 entries) overflow this and scroll instead
+// of growing off-screen. About 10 rows tall at our 32px row height,
+// which is the typical combobox / native <select> popover size.
+const SELECT_MAX_MENU_HEIGHT = 320;
+const SELECT_VIEWPORT_PADDING = 8;
+
 function Select({ value, options, onChange }) {
   const [open, setOpen] = useState(false);
   const [menuRect, setMenuRect] = useState(null);
@@ -731,15 +738,28 @@ function Select({ value, options, onChange }) {
   const current =
     options.find((o) => o.value === value) ?? options[0] ?? null;
 
-  // Position the floating menu under the trigger and track its rect so
-  // the portal stays anchored across canvas pans / scrolls. Escape and
-  // outside-click both dismiss.
+  // Position the floating menu next to the trigger. We compute both
+  // the height we want (capped at SELECT_MAX_MENU_HEIGHT) and whether
+  // there's room below or whether we should flip above — same
+  // behaviour native <select> uses to keep the menu on-screen.
   useLayoutEffect(() => {
     if (!open) return;
     function place() {
       const r = triggerRef.current?.getBoundingClientRect();
       if (!r) return;
-      setMenuRect({ left: r.left, top: r.bottom + 4, width: r.width });
+      const vh = window.innerHeight;
+      const spaceBelow = vh - r.bottom - SELECT_VIEWPORT_PADDING;
+      const spaceAbove = r.top - SELECT_VIEWPORT_PADDING;
+      // Prefer below unless we'd have to clip more than we would
+      // above. If space below is enough for the cap, just open below.
+      const flipAbove =
+        spaceBelow < SELECT_MAX_MENU_HEIGHT && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(
+        120,
+        Math.min(SELECT_MAX_MENU_HEIGHT, flipAbove ? spaceAbove : spaceBelow),
+      );
+      const top = flipAbove ? r.top - maxHeight - 4 : r.bottom + 4;
+      setMenuRect({ left: r.left, top, width: r.width, maxHeight });
     }
     place();
     window.addEventListener("scroll", place, true);
@@ -749,6 +769,17 @@ function Select({ value, options, onChange }) {
       window.removeEventListener("resize", place);
     };
   }, [open]);
+
+  // When the menu opens, scroll the currently-selected option into
+  // view. With 54 items in the TailGrids picker the user's choice
+  // would otherwise be off-screen on every re-open.
+  useEffect(() => {
+    if (!open || !menuRef.current) return;
+    const selectedEl = menuRef.current.querySelector(
+      "[data-selected='true']",
+    );
+    if (selectedEl) selectedEl.scrollIntoView({ block: "nearest" });
+  }, [open, menuRect]);
 
   useEffect(() => {
     if (!open) return;
@@ -811,9 +842,11 @@ function Select({ value, options, onChange }) {
               left: menuRect.left,
               top: menuRect.top,
               width: menuRect.width,
+              maxHeight: menuRect.maxHeight,
             }}
-            className="z-[60] bg-white rounded-lg border border-ink-200 shadow-floating overflow-hidden py-1"
+            className="z-[60] bg-white rounded-lg border border-ink-200 shadow-floating overflow-y-auto overscroll-contain scroll-thin py-1"
             onMouseDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
           >
             {options.map((opt) => {
               const selected = opt.value === value;
@@ -823,6 +856,7 @@ function Select({ value, options, onChange }) {
                   type="button"
                   role="option"
                   aria-selected={selected}
+                  data-selected={selected ? "true" : "false"}
                   onClick={(e) => {
                     e.stopPropagation();
                     onChange(opt.value);
