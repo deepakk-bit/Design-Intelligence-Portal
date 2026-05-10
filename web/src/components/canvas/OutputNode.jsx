@@ -161,7 +161,10 @@ export default function OutputNode({ id, data, selected }) {
           />
         )}
         {kind === "tailgrids" && result?.tailgrids?.source && (
-          <TailgridsCopyButton source={result.tailgrids.source} />
+          <TailgridsCopyButton
+            source={result.tailgrids.source}
+            jsx={result.tailgrids.jsx}
+          />
         )}
         <button
           onClick={() => removeNode(id)}
@@ -1481,11 +1484,12 @@ function MatrixLightbox({ srcDoc, title, onClose }) {
 
 // --- TailGrids component output ----------------------------------------
 
-// Body for the TailGrids Component Generator output card. Phase 1 shows
-// the raw .tsx source the agent fetched from the upstream repo, plus a
-// link back to the canonical file on GitHub. Phase 2 will add a live
-// preview iframe and plugin-ready JSX once the cva interpreter and
-// theme resolver are in.
+// Body for the TailGrids Component Generator output card. Phase 2:
+// when the composer succeeded (single-cva components), show a live
+// preview iframe with arbitrary-value Tailwind painting via the play
+// CDN. When composition was skipped (multi-cva, slot-based, or
+// non-cva components), fall back to a source-only view — the user
+// still gets the canonical .tsx so the agent is never useless.
 function TailgridsBody({ result }) {
   const tg = result?.tailgrids;
   if (!tg || typeof tg.source !== "string") {
@@ -1496,6 +1500,7 @@ function TailgridsBody({ result }) {
     );
   }
 
+  const composed = !!tg.html && !!tg.jsx;
   const lineCount = tg.source.split("\n").length;
   const byteCount = tg.source.length;
 
@@ -1530,55 +1535,66 @@ function TailgridsBody({ result }) {
         )}
       </div>
 
-      {/* Phase 2 placeholder, shown clearly so users don't wonder where
-          the visual preview went. Same iframe footprint as the previews
-          kind for layout consistency. */}
-      <div className="rounded-lg border border-dashed border-ink-300 bg-ink-50/60 px-4 py-6 text-center">
-        <div className="text-[12px] font-medium text-ink-700 mb-1">
-          Live preview coming in Phase 2
-        </div>
-        <p className="text-[11px] text-ink-500 leading-snug max-w-md mx-auto">
-          TailGrids' React components reference custom CSS variables
-          (e.g. <span className="font-mono">bg-button-primary-background</span>),
-          so they need theme resolution before they paint outside their
-          own app. Phase 2 adds a cva interpreter that emits arbitrary-value
-          Tailwind classes, plugin-ready.
-        </p>
-      </div>
+      {composed ? (
+        <>
+          {/* Live preview — Tailwind play CDN inside the iframe handles
+              every arbitrary-value class the composer emitted. Click to
+              expand at full size. */}
+          <MatrixPreview srcDoc={tg.html} title={`${tg.name} preview`} />
 
-      {/* Source viewer. Plain monospace block — keep it lightweight, no
-          syntax-highlighting library to bloat the bundle. The Copy
-          button in the card header pulls the same string. */}
+          <p className="text-[11px] text-ink-500 leading-snug">
+            Hit <span className="font-medium text-ink-900">Copy JSX</span> in
+            the card header to grab plugin-ready code with TailGrids'
+            theme tokens already resolved to hex — paste into the
+            React (Tailwind) to Design plugin in Figma.
+          </p>
+        </>
+      ) : (
+        // Composition skipped — multi-cva component (Alert, Toast,
+        // Tabs) or slot-based primitive (Card, Dialog). The static
+        // composer can't reproduce these without a real React
+        // renderer; surface the reason rather than burying it.
+        <div className="rounded-lg border border-dashed border-ink-300 bg-ink-50/60 px-4 py-5 text-center">
+          <div className="text-[12px] font-medium text-ink-700 mb-1">
+            Live preview not available for this component
+          </div>
+          <p className="text-[11px] text-ink-500 leading-snug max-w-md mx-auto">
+            This component composes multiple cva primitives or relies
+            on slot props — beyond what the static composer covers
+            today. The raw .tsx below is still the canonical source.
+            Compound-component preview support is a later phase.
+          </p>
+        </div>
+      )}
+
+      {/* Source viewer. Always shown so the user can verify what was
+          fetched and grab it for their codebase. The Copy button in
+          the card header pulls JSX when available, source otherwise. */}
       <div className="rounded-lg border border-ink-200 bg-ink-900 text-ink-50 overflow-hidden">
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-ink-800 text-[11px] text-ink-400">
           <span className="font-mono">{tg.id}.tsx</span>
           <span>raw source</span>
         </div>
-        <pre className="px-3 py-2 text-[11px] leading-relaxed font-mono overflow-x-auto max-h-[360px] scroll-thin">
+        <pre className="px-3 py-2 text-[11px] leading-relaxed font-mono overflow-x-auto max-h-[280px] scroll-thin">
           <code>{tg.source}</code>
         </pre>
       </div>
-
-      <p className="text-[11px] text-ink-500 leading-snug">
-        Hit <span className="font-medium text-ink-900">Copy code</span> in
-        the card header to grab the canonical <span className="font-mono">
-          {tg.id}.tsx
-        </span>{" "}
-        — what <span className="font-mono">npx @tailgrids/cli add {tg.id}</span>
-        {" "}would install.
-      </p>
     </div>
   );
 }
 
-// Standalone Copy button rendered in the OutputNode card header for the
-// tailgrids kind. Phase 1: copies the raw .tsx source to the clipboard.
-// Phase 2 will copy the resolved plugin-ready JSX instead.
-function TailgridsCopyButton({ source }) {
+// Standalone Copy button rendered in the OutputNode card header for
+// the tailgrids kind. Prefers the resolved plugin-ready JSX when the
+// composer produced one; falls back to the raw .tsx for components
+// that didn't compose. The label flips so the user knows what
+// they're getting on click.
+function TailgridsCopyButton({ source, jsx }) {
   const [copied, setCopied] = useState(false);
+  const hasJsx = typeof jsx === "string" && jsx.length > 0;
+  const payload = hasJsx ? jsx : source;
   async function copy() {
     try {
-      await navigator.clipboard.writeText(source);
+      await navigator.clipboard.writeText(payload);
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     } catch {
@@ -1588,11 +1604,17 @@ function TailgridsCopyButton({ source }) {
   return (
     <button
       onClick={copy}
-      title="Copy raw .tsx source"
+      title={
+        hasJsx
+          ? "Copy plugin-ready React + Tailwind JSX"
+          : "Copy raw .tsx source"
+      }
       aria-label={
         copied
-          ? "Source copied to clipboard"
-          : "Copy the raw .tsx source for this component"
+          ? "Code copied to clipboard"
+          : hasJsx
+            ? "Copy plugin-ready JSX for this component"
+            : "Copy the raw .tsx source for this component"
       }
       className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
         copied
@@ -1606,7 +1628,8 @@ function TailgridsCopyButton({ source }) {
         </>
       ) : (
         <>
-          <Copy size={13} aria-hidden="true" /> Copy code
+          <Copy size={13} aria-hidden="true" />{" "}
+          {hasJsx ? "Copy JSX" : "Copy source"}
         </>
       )}
     </button>
