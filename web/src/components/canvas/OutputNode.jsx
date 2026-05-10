@@ -1558,10 +1558,10 @@ function TailgridsBody({ result }) {
           <MatrixPreview srcDoc={tg.html} title={`${tg.name} preview`} />
 
           <p className="text-[11px] text-ink-500 leading-snug">
-            Hit <span className="font-medium text-ink-900">Copy JSX</span> in
-            the card header to grab plugin-ready code with TailGrids'
-            theme tokens already resolved to hex — paste into the
-            React (Tailwind) to Design plugin in Figma.
+            Hit <span className="font-medium text-ink-900">Copy React</span> in
+            the card header to grab a self-contained React component
+            file — every section above stacked in one default export,
+            theme tokens resolved to hex so it paints anywhere.
           </p>
         </>
       ) : (
@@ -1621,14 +1621,14 @@ function TailgridsCopyButton({ source, jsx }) {
       onClick={copy}
       title={
         hasJsx
-          ? "Copy plugin-ready React + Tailwind JSX"
+          ? "Copy a React component file with the full showcase"
           : "Copy raw .tsx source"
       }
       aria-label={
         copied
-          ? "Code copied to clipboard"
+          ? "React component copied to clipboard"
           : hasJsx
-            ? "Copy plugin-ready JSX for this component"
+            ? "Copy a React component file with the full TailGrids showcase"
             : "Copy the raw .tsx source for this component"
       }
       className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
@@ -1644,7 +1644,7 @@ function TailgridsCopyButton({ source, jsx }) {
       ) : (
         <>
           <Copy size={13} aria-hidden="true" />{" "}
-          {hasJsx ? "Copy JSX" : "Copy source"}
+          {hasJsx ? "Copy React" : "Copy source"}
         </>
       )}
     </button>
