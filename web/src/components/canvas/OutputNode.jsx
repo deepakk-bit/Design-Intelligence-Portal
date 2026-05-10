@@ -1418,7 +1418,12 @@ function MatrixPreview({ srcDoc, title }) {
       >
         <iframe
           title={title}
-          sandbox=""
+          // `allow-scripts` lets the Tailwind play CDN run inside the
+          // iframe so arbitrary-value classes (bg-[#3758f9], etc.)
+          // paint. We deliberately omit `allow-same-origin` so the
+          // sandboxed script still can't reach our app's DOM, cookies,
+          // or storage — it's fully isolated.
+          sandbox="allow-scripts"
           srcDoc={srcDoc}
           className="w-full border-0 block pointer-events-none"
           style={{ height: 540 }}
@@ -1472,7 +1477,11 @@ function MatrixLightbox({ srcDoc, title, onClose }) {
         </div>
         <iframe
           title={title}
-          sandbox=""
+          // Same rationale as MatrixPreview's iframe: `allow-scripts`
+          // is required for the Tailwind play CDN inside the srcDoc
+          // to generate styles for arbitrary-value classes. No
+          // `allow-same-origin` so cross-frame isolation is intact.
+          sandbox="allow-scripts"
           srcDoc={srcDoc}
           className="flex-1 w-full border-0 bg-ink-50 min-h-0"
         />
