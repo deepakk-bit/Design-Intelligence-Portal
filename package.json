@@ -12,7 +12,8 @@
     "install:web": "npm --prefix web install"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.88.0"
+    "@anthropic-ai/sdk": "^0.88.0",
+    "jszip": "^3.10.1"
   },
   "engines": {
     "node": ">=20"
