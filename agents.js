@@ -564,22 +564,22 @@ export const AGENTS = {
     id: "interaction",
     name: "Component Interaction Analyst",
     inputs: ["image"],
-    // Sonnet by default — Opus on demand for deep critique. The toggle is
-    // declared as a transient extra so it appears in the UI but is excluded
-    // from the user prompt (it's a runtime config, not prompt input).
-    defaultModel: "sonnet",
+    // Opus by default — deepest critique tier for interaction analysis.
+    // The Quality toggle stays so the user can drop to Sonnet when
+    // they want a faster, cheaper run.
+    defaultModel: "opus",
     extras: [
       {
         key: "modelTier",
         label: "Quality",
         type: "select",
-        default: "sonnet",
+        default: "opus",
         transient: true,
         options: [
-          { value: "sonnet", label: "Standard · Sonnet" },
-          { value: "opus", label: "High · Opus (deeper critique)" },
+          { value: "opus", label: "High · Opus (deepest critique)" },
+          { value: "sonnet", label: "Standard · Sonnet (faster / cheaper)" },
         ],
-        help: "Standard handles most reviews. Use High for senior/handoff-grade critiques.",
+        help: "High is the default. Drop to Standard when you want a quick read or batch many reviews.",
       },
     ],
     systemPrompt: readPrompt("interaction-analyst.md"),
@@ -640,8 +640,10 @@ export const AGENTS = {
     // Refero MCP and returns reference cards. Strict JSON schema is used only
     // for the query-extraction stage.
     kind: "references",
-    // Haiku is plenty for keyword extraction — saves ~95% vs Opus.
-    defaultModel: "haiku",
+    // Opus by default per the workspace-wide Opus-everywhere policy.
+    // Keyword extraction doesn't really need it, but consistency with
+    // the rest of the agents wins.
+    defaultModel: "opus",
     inputs: ["image", "text"],
     inputsRequireOneOf: ["image", "text"],
     systemPrompt: readPrompt("reference-finder.md"),
@@ -674,9 +676,10 @@ export const AGENTS = {
   "dev-handoff": {
     id: "dev-handoff",
     name: "Dev Handoff Checker",
-    // Sonnet handles the structured presence/absence checks well; no need
-    // for Opus here.
-    defaultModel: "sonnet",
+    // Opus by default per the workspace-wide policy. The structured
+    // presence/absence checks are routine, but using Opus keeps every
+    // agent on the same tier and avoids surprise quality drops.
+    defaultModel: "opus",
     // Multi-image: up to 4 frames, only the first is required so designers
     // can hand off a single screen or a small set without padding the rest.
     imageSlots: [
@@ -785,20 +788,21 @@ export const AGENTS = {
     name: "QA Review",
     // Multi-image agent: design vs built comparison with a unified report
     // (summary + concise issue log + check coverage + recommendations).
-    // Sonnet by default; Opus toggle for ship-blocking handoffs.
-    defaultModel: "sonnet",
+    // Opus by default — QA verdicts gate ship decisions, depth matters.
+    // The toggle lets the user drop to Sonnet for routine sweeps.
+    defaultModel: "opus",
     extras: [
       {
         key: "modelTier",
         label: "Quality",
         type: "select",
-        default: "claude-sonnet-4-7",
+        default: "opus",
         transient: true,
         options: [
-          { value: "claude-sonnet-4-7", label: "Standard · Sonnet" },
-          { value: "claude-opus-4-7", label: "High · Opus (critical handoffs)" },
+          { value: "opus", label: "High · Opus (default — critical handoffs)" },
+          { value: "sonnet", label: "Standard · Sonnet (routine sweeps)" },
         ],
-        help: "Standard for routine QA. Use High when the verdict is going to gate a release.",
+        help: "High is the default. Drop to Standard when you want a quick scan.",
       },
     ],
     imageSlots: [
