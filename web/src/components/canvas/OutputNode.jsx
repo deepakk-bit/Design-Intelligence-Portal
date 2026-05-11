@@ -161,10 +161,15 @@ export default function OutputNode({ id, data, selected }) {
           />
         )}
         {kind === "tailgrids" && result?.tailgrids?.source && (
-          <TailgridsCopyButton
-            source={result.tailgrids.source}
-            jsx={result.tailgrids.jsx}
-          />
+          <>
+            {result.tailgrids.jsx && (
+              <TailgridsSketchButton slug={result.tailgrids.id} />
+            )}
+            <TailgridsCopyButton
+              source={result.tailgrids.source}
+              jsx={result.tailgrids.jsx}
+            />
+          </>
         )}
         <button
           onClick={() => removeNode(id)}
@@ -1604,6 +1609,75 @@ function TailgridsBody({ result }) {
         </pre>
       </div>
     </div>
+  );
+}
+
+// Download button next to Copy that pulls a .sketch file from the
+// server. The endpoint regenerates the file on demand (24h cache on
+// the upstream component fetch keeps it cheap). We mark the button
+// busy during the request so users see feedback for the few hundred
+// ms it takes the server to assemble the ZIP.
+function TailgridsSketchButton({ slug }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  async function download() {
+    if (!slug) return;
+    setBusy(true);
+    setError(false);
+    try {
+      const res = await fetch(
+        `/api/tailgrids/sketch?slug=${encodeURIComponent(slug)}`,
+      );
+      if (!res.ok) {
+        let msg = `${res.status}`;
+        try {
+          const j = await res.json();
+          msg = j.error ?? msg;
+        } catch {
+          /* non-json body */
+        }
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug}.sketch`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Free the blob URL a moment later so the click handler has
+      // time to start the download in every browser.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.warn("[sketch] download failed:", err);
+      setError(true);
+      setTimeout(() => setError(false), 3000);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      onClick={download}
+      disabled={busy}
+      title="Download a .sketch file with editable layers + Symbol Masters with Smart Layout"
+      aria-label={
+        busy
+          ? "Building Sketch file"
+          : error
+            ? "Sketch download failed"
+            : "Download .sketch file for this component"
+      }
+      className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+        error
+          ? "bg-red-50 text-red-700 border border-red-200"
+          : "bg-white text-ink-700 border border-ink-200 hover:bg-ink-50"
+      } ${busy ? "opacity-60 cursor-wait" : ""}`}
+    >
+      <Download size={13} aria-hidden="true" />{" "}
+      {busy ? "Building…" : error ? "Failed" : "Download .sketch"}
+    </button>
   );
 }
 
