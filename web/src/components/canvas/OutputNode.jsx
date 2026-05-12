@@ -623,7 +623,13 @@ function QaReviewBody({ nodeId, data, result }) {
                 showPopovers={view === "annotation"}
                 onPinClick={(i) => focusIssue(i)}
                 onPinHover={(i) => setActiveIndex(i)}
-                onPinnedClose={() => setPinnedIndex(null)}
+                onPinnedClose={() => {
+                  // Outside-click / Escape clears both pinned and
+                  // hover state — otherwise the hover-preview popover
+                  // would persist after dismiss.
+                  setPinnedIndex(null);
+                  setActiveIndex(null);
+                }}
                 onToggleFixed={toggleFixed}
               />
             </div>
@@ -785,18 +791,24 @@ function AnnotatedBuiltImage({
   onPinnedClose,
   onToggleFixed,
 }) {
-  // Outside-click + Escape dismiss the pinned popover. Clicks on
-  // pins themselves are handled by their own onClick — the listener
-  // here just catches the rest of the screen.
+  // Outside-click + Escape dismiss the popover (both pinned and
+  // hover-preview). Clicks on pins or inside the popover are
+  // allowed — they have their own handlers.
+  //
+  // We don't dismiss the hover popover on pin's mouseleave anymore.
+  // That flickers and feels broken when the user moves their cursor
+  // from the pin toward the card (the 16px gap means mouseleave fires
+  // before mouseenter on the popover). Instead, the popover stays
+  // until the user hovers a different pin, clicks outside, or hits
+  // Escape — which is the same dismiss model Figma uses for
+  // annotation pins.
   const containerRef = useRef(null);
   useEffect(() => {
-    if (pinnedIndex == null) return;
+    const hasPopover = pinnedIndex != null || activeIndex != null;
+    if (!hasPopover) return;
     function onDown(e) {
-      if (!containerRef.current) return;
-      // Allow clicks inside the popover or on a pin to do their own
-      // thing — only dismiss when the user clicks elsewhere.
-      const inside = containerRef.current.contains(e.target);
-      const inPopover = e.target.closest?.("[data-qa-popover]");
+      const inside = containerRef.current?.contains(e.target);
+      const inPopover = e.target?.closest?.("[data-qa-popover]");
       if (inside && !inPopover) return;
       if (inPopover) return;
       onPinnedClose?.();
@@ -810,7 +822,7 @@ function AnnotatedBuiltImage({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [pinnedIndex, onPinnedClose]);
+  }, [pinnedIndex, activeIndex, onPinnedClose]);
 
   // The popover anchors to a pin. We render only one popover at a
   // time — pinned takes precedence; otherwise the hovered pin's
@@ -851,21 +863,26 @@ function AnnotatedBuiltImage({
               }
               onClick={() => onPinClick?.(i)}
               onMouseEnter={() => onPinHover?.(i)}
-              onMouseLeave={() => onPinHover?.(null)}
+              // No mouseleave handler: the popover should stay open
+              // while the user reads it. Hovering a different pin
+              // swaps the popover; clicking outside or pressing
+              // Escape (handled by the parent's pinned-close effect)
+              // dismisses it.
             />
           );
         })}
-        {showPopovers && popoverIssue && (
-          <PinPopover
-            issue={popoverIssue}
-            number={popoverIdx + 1}
-            pinned={pinnedIndex === popoverIdx}
-            fixed={fixedSet?.has(popoverIdx)}
-            onToggleFixed={() => onToggleFixed?.(popoverIdx)}
-            onClose={() => onPinnedClose?.()}
-          />
-        )}
       </div>
+      {showPopovers && popoverIssue && (
+        <PinPopover
+          containerRef={containerRef}
+          issue={popoverIssue}
+          number={popoverIdx + 1}
+          pinned={pinnedIndex === popoverIdx}
+          fixed={fixedSet?.has(popoverIdx)}
+          onToggleFixed={() => onToggleFixed?.(popoverIdx)}
+          onClose={() => onPinnedClose?.()}
+        />
+      )}
     </div>
   );
 }
@@ -881,34 +898,112 @@ function AnnotatedBuiltImage({
 // The whole thing is `pointer-events-auto` so the card can be hovered
 // and clicked without dismissing — the parent's pointer-events-none
 // keeps the pin layer transparent everywhere else.
-function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
-  // Belt-and-suspenders guard: if `issue` is somehow null or
-  // malformed, render nothing instead of crashing. The parent gates
-  // PinPopover behind `popoverIssue &&`, but a defensive check here
-  // means a future caller can't unexpectedly take down the whole
-  // canvas tree by passing undefined.
+// Floating issue card anchored to a pin. Reuses QaReviewIssueCard so
+// the popover is visually identical to the list-view row, then adds:
+//   - A document.body portal with position: fixed, so the card
+//     escapes the image container's `overflow-hidden` (which it
+//     needs for rounded corners) AND the OutputNode body's
+//     `overflow-y-auto` scroll wrapper. Either would otherwise clip
+//     the popover near the edges.
+//   - Viewport-aware flip: prefers right + below the pin, flips
+//     left/up when it would overflow the viewport edge.
+//   - A close (X) button at the top-right, visible only when pinned.
+const POPOVER_WIDTH = 320;
+const POPOVER_OFFSET = 16;
+const POPOVER_MARGIN = 8;
+function PinPopover({
+  containerRef,
+  issue,
+  number,
+  pinned,
+  fixed,
+  onToggleFixed,
+  onClose,
+}) {
+  // Belt-and-suspenders guard: if `issue` is somehow null or malformed,
+  // render nothing instead of crashing the whole canvas tree.
   if (!issue) return null;
-  const x = Math.max(0, Math.min(1, issue.point?.x ?? 0.5)) * 100;
-  const y = Math.max(0, Math.min(1, issue.point?.y ?? 0.5)) * 100;
-  // Flip horizontally past the midline so the card stays inside the
-  // image. Same for vertical — show above the pin when it's in the
-  // bottom half of the image.
-  const flipRight = x > 55;
-  const flipBottom = y > 55;
-  const positionStyle = {
-    left: `${x}%`,
-    top: `${y}%`,
-    transform: `translate(${flipRight ? "calc(-100% - 18px)" : "18px"}, ${
-      flipBottom ? "calc(-100% - 18px)" : "18px"
-    })`,
-  };
-  return (
+
+  const [position, setPosition] = useState(null);
+
+  useLayoutEffect(() => {
+    function place() {
+      const c = containerRef?.current;
+      if (!c) return;
+      let r;
+      try {
+        r = c.getBoundingClientRect();
+      } catch {
+        return;
+      }
+      const px = Math.max(0, Math.min(1, issue.point?.x ?? 0.5));
+      const py = Math.max(0, Math.min(1, issue.point?.y ?? 0.5));
+      const pinX = r.left + r.width * px;
+      const pinY = r.top + r.height * py;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Hide entirely if the pin scrolled out of view — pointing at
+      // nothing is worse than showing nothing.
+      if (pinX < -50 || pinX > vw + 50 || pinY < -50 || pinY > vh + 50) {
+        setPosition(null);
+        return;
+      }
+      // Horizontal: prefer right of pin. Flip left when the card
+      // would overflow the viewport's right edge. Clamp inside
+      // [margin, vw - width - margin] for safety.
+      const flipLeft =
+        pinX + POPOVER_OFFSET + POPOVER_WIDTH > vw - POPOVER_MARGIN;
+      let left = flipLeft
+        ? pinX - POPOVER_OFFSET - POPOVER_WIDTH
+        : pinX + POPOVER_OFFSET;
+      left = Math.max(
+        POPOVER_MARGIN,
+        Math.min(left, vw - POPOVER_WIDTH - POPOVER_MARGIN),
+      );
+      // Vertical: prefer below pin. 240px is a safe upper bound on
+      // QaReviewIssueCard's height for typical content; flip up when
+      // it'd overflow the viewport bottom, then clamp.
+      const estHeight = 240;
+      const flipUp =
+        pinY + POPOVER_OFFSET + estHeight > vh - POPOVER_MARGIN;
+      let top = flipUp
+        ? pinY - POPOVER_OFFSET - estHeight
+        : pinY + POPOVER_OFFSET;
+      top = Math.max(
+        POPOVER_MARGIN,
+        Math.min(top, vh - estHeight - POPOVER_MARGIN),
+      );
+      setPosition({ left, top });
+    }
+    try {
+      place();
+    } catch {
+      // Defensive — placement should never throw, but if it does,
+      // we'd rather render nothing than crash the canvas.
+    }
+    // Reposition on scroll (canvas pan, page scroll, parent scroll)
+    // and resize. Capture catches scrolls in any scrollable ancestor.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [issue, containerRef]);
+
+  if (!position) return null;
+  return createPortal(
     <div
       data-qa-popover
       role={pinned ? "dialog" : "tooltip"}
       aria-modal={pinned}
-      style={positionStyle}
-      className="pointer-events-auto absolute z-30 w-[320px] max-w-[calc(100%-32px)]"
+      style={{
+        position: "fixed",
+        left: position.left,
+        top: position.top,
+        width: POPOVER_WIDTH,
+      }}
+      className="pointer-events-auto z-[100]"
     >
       <div className="relative shadow-floating rounded-lg">
         <QaReviewIssueCard
@@ -932,7 +1027,8 @@ function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
