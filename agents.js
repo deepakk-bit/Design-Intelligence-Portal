@@ -586,10 +586,8 @@ const jsxGeneratorSchema = {
     },
     sections: {
       type: "array",
-      minItems: 1,
-      maxItems: 6,
       description:
-        "Visual states / variants. First entry is always Default. Add additional entries only for states with visibly distinct markup.",
+        "Visual states / variants. First entry is always Default. Add additional entries only for states with visibly distinct markup. Keep it to roughly 1–6 sections — the system prompt enforces the upper bound.",
       items: {
         type: "object",
         additionalProperties: false,
