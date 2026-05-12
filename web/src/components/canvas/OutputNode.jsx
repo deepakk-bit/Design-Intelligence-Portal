@@ -450,9 +450,20 @@ function QaReviewBody({ nodeId, data, result }) {
     (it) => it.point && typeof it.point.x === "number",
   );
 
+  // View mode: "annotation" shows the image with hover/click popovers
+  // on each pin (no list below); "list" shows the image plus the
+  // scrollable issue log we shipped originally. Annotation is the
+  // default since the typical QA-Review action is to look at the
+  // built screenshot and triage what's wrong on screen.
+  const [view, setView] = useState("annotation");
+
   // Pin/row linking state. Hovering or clicking either side highlights
   // its counterpart; clicking a pin also scrolls the matching row into view.
   const [activeIndex, setActiveIndex] = useState(null);
+  // The "pinned" popover index — set by clicking a pin in annotation
+  // view, persists until the user clicks elsewhere or hits Escape.
+  // The hover state above is transient; this one is sticky.
+  const [pinnedIndex, setPinnedIndex] = useState(null);
   const rowRefsRef = useRef(new Map());
   function setRowRef(idx, el) {
     if (el) rowRefsRef.current.set(idx, el);
@@ -460,9 +471,11 @@ function QaReviewBody({ nodeId, data, result }) {
   }
   function focusIssue(idx) {
     setActiveIndex(idx);
-    const el = rowRefsRef.current.get(idx);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (view === "annotation") {
+      setPinnedIndex(idx);
+    } else {
+      const el = rowRefsRef.current.get(idx);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
 
@@ -535,13 +548,22 @@ function QaReviewBody({ nodeId, data, result }) {
 
       {builtImage?.dataUrl && (
         <div>
-          <SectionLabel
-            icon={ClipboardCheck}
-            color="#9333ea"
-            count={issuesWithPoints.length}
-          >
-            Design vs Built
-          </SectionLabel>
+          <div className="flex items-center justify-between mb-2">
+            <SectionLabel
+              icon={ClipboardCheck}
+              color="#9333ea"
+              count={issuesWithPoints.length}
+            >
+              Design vs Built
+            </SectionLabel>
+            <QaViewToggle
+              view={view}
+              onChange={(v) => {
+                setView(v);
+                if (v !== "annotation") setPinnedIndex(null);
+              }}
+            />
+          </div>
           <div className="space-y-3">
             {designImage?.dataUrl ? (
               <div>
@@ -578,63 +600,84 @@ function QaReviewBody({ nodeId, data, result }) {
                     {issuesWithPoints.length === 1 ? "" : "s"}
                   </span>
                 )}
+                {view === "annotation" && issues.length > 0 && (
+                  <span className="text-[10px] text-ink-400 ml-auto tabular-nums">
+                    {fixedCount}/{issues.length} fixed
+                    {fixedCount > 0 && (
+                      <button
+                        onClick={clearAllFixed}
+                        className="ml-2 text-ink-400 hover:text-ink-700 underline underline-offset-2"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </span>
+                )}
               </div>
               <AnnotatedBuiltImage
                 image={builtImage}
                 issues={issues}
                 activeIndex={activeIndex}
+                pinnedIndex={view === "annotation" ? pinnedIndex : null}
+                fixedSet={fixedSet}
+                showPopovers={view === "annotation"}
                 onPinClick={(i) => focusIssue(i)}
                 onPinHover={(i) => setActiveIndex(i)}
+                onPinnedClose={() => setPinnedIndex(null)}
+                onToggleFixed={toggleFixed}
               />
             </div>
           </div>
           {issuesWithPoints.length > 0 && (
             <p className="text-[10px] text-ink-400 mt-1.5">
-              Pins land on the built image. Click a pin to jump to its
-              issue; hover an issue row to highlight its pin.
+              {view === "annotation"
+                ? "Hover a pin to preview the issue. Click to keep the card open and check it off when fixed."
+                : "Pins land on the built image. Click a pin to jump to its issue; hover an issue row to highlight its pin."}
             </p>
           )}
         </div>
       )}
 
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <SectionLabel
-            icon={ClipboardCheck}
-            color="#9333ea"
-            count={issues.length}
-          >
-            Issue log
-          </SectionLabel>
-          {issues.length > 0 && (
-            <div className="flex items-center gap-2 -mt-2">
-              <span className="text-[10px] text-ink-500 tabular-nums">
-                {fixedCount}/{issues.length} fixed
-              </span>
-              {fixedCount > 0 && (
-                <button
-                  onClick={clearAllFixed}
-                  className="text-[10px] text-ink-400 hover:text-ink-700 underline underline-offset-2"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
+      {view === "list" && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <SectionLabel
+              icon={ClipboardCheck}
+              color="#9333ea"
+              count={issues.length}
+            >
+              Issue log
+            </SectionLabel>
+            {issues.length > 0 && (
+              <div className="flex items-center gap-2 -mt-2">
+                <span className="text-[10px] text-ink-500 tabular-nums">
+                  {fixedCount}/{issues.length} fixed
+                </span>
+                {fixedCount > 0 && (
+                  <button
+                    onClick={clearAllFixed}
+                    className="text-[10px] text-ink-400 hover:text-ink-700 underline underline-offset-2"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {issues.length === 0 ? (
+            <div className="text-[11px] text-ink-400 italic">No issues found.</div>
+          ) : (
+            <QaReviewIssueGroups
+              issues={issues}
+              fixedSet={fixedSet}
+              onToggle={toggleFixed}
+              activeIndex={activeIndex}
+              onRowHover={setActiveIndex}
+              setRowRef={setRowRef}
+            />
           )}
         </div>
-        {issues.length === 0 ? (
-          <div className="text-[11px] text-ink-400 italic">No issues found.</div>
-        ) : (
-          <QaReviewIssueGroups
-            issues={issues}
-            fixedSet={fixedSet}
-            onToggle={toggleFixed}
-            activeIndex={activeIndex}
-            onRowHover={setActiveIndex}
-            setRowRef={setRowRef}
-          />
-        )}
-      </div>
+      )}
 
       <div>
         <SectionLabel icon={ListChecks} color="#2563eb">
@@ -685,18 +728,104 @@ function QaReviewBody({ nodeId, data, result }) {
   );
 }
 
+// Segmented control to switch the QA Review middle section between
+// "annotation" (image + hover/click popovers on pins) and "list" (image
+// above the issue log). Keeps verdict, coverage, and recommendations
+// always visible regardless of mode.
+function QaViewToggle({ view, onChange }) {
+  const tabs = [
+    { id: "annotation", label: "Annotation" },
+    { id: "list", label: "List" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Issue display mode"
+      className="inline-flex rounded-md border border-ink-200 bg-ink-50 p-0.5 text-[11px]"
+    >
+      {tabs.map((t) => {
+        const active = t.id === view;
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(t.id)}
+            className={`px-2.5 py-1 rounded transition ${
+              active
+                ? "bg-white text-ink-900 shadow-sm font-medium"
+                : "text-ink-500 hover:text-ink-700"
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // Built screenshot with numbered pins overlaid at each issue's normalised
 // coordinate. The pins are buttons so they're keyboard-focusable; clicking
 // scrolls the matching list row into view, hovering highlights it.
+//
+// In annotation mode (`showPopovers`), hovering a pin reveals a small
+// "preview" card with the issue details. Clicking pins the card so the
+// user can read at leisure and tick "Mark as done". Click outside, hit
+// Escape, or click the pinned pin again to dismiss.
 function AnnotatedBuiltImage({
   image,
   issues,
   activeIndex,
+  pinnedIndex,
+  fixedSet,
+  showPopovers,
   onPinClick,
   onPinHover,
+  onPinnedClose,
+  onToggleFixed,
 }) {
+  // Outside-click + Escape dismiss the pinned popover. Clicks on
+  // pins themselves are handled by their own onClick — the listener
+  // here just catches the rest of the screen.
+  const containerRef = useRef(null);
+  useEffect(() => {
+    if (pinnedIndex == null) return;
+    function onDown(e) {
+      if (!containerRef.current) return;
+      // Allow clicks inside the popover or on a pin to do their own
+      // thing — only dismiss when the user clicks elsewhere.
+      const inside = containerRef.current.contains(e.target);
+      const inPopover = e.target.closest?.("[data-qa-popover]");
+      if (inside && !inPopover) return;
+      if (inPopover) return;
+      onPinnedClose?.();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") onPinnedClose?.();
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [pinnedIndex, onPinnedClose]);
+
+  // The popover anchors to a pin. We render only one popover at a
+  // time — pinned takes precedence; otherwise the hovered pin's
+  // preview shows.
+  const popoverIdx = pinnedIndex ?? (showPopovers ? activeIndex : null);
+  const popoverIssue =
+    popoverIdx != null && popoverIdx >= 0 && popoverIdx < issues.length
+      ? issues[popoverIdx]
+      : null;
+
   return (
-    <div className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+    <div
+      ref={containerRef}
+      className="relative rounded-lg overflow-hidden border border-ink-200 bg-ink-50"
+    >
       <img
         src={image.dataUrl}
         alt="Built screenshot annotated with QA issue pins"
@@ -713,15 +842,118 @@ function AnnotatedBuiltImage({
               severity={issue.severity}
               x={issue.point.x}
               y={issue.point.y}
-              active={activeIndex === i}
-              dim={activeIndex != null && activeIndex !== i}
+              active={pinnedIndex === i || activeIndex === i}
+              fixed={fixedSet?.has(i)}
+              dim={
+                pinnedIndex != null
+                  ? pinnedIndex !== i
+                  : activeIndex != null && activeIndex !== i
+              }
               onClick={() => onPinClick?.(i)}
               onMouseEnter={() => onPinHover?.(i)}
               onMouseLeave={() => onPinHover?.(null)}
             />
           );
         })}
+        {showPopovers && popoverIssue && (
+          <PinPopover
+            issue={popoverIssue}
+            number={popoverIdx + 1}
+            pinned={pinnedIndex === popoverIdx}
+            fixed={fixedSet?.has(popoverIdx)}
+            onToggleFixed={() => onToggleFixed?.(popoverIdx)}
+            onClose={() => onPinnedClose?.()}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+// Floating card anchored to a pin. The pin's normalised x/y lives on
+// the issue itself; we flip the card to the opposite side of the
+// pin when it would otherwise overflow the image edge. The whole
+// thing is `pointer-events-auto` so the card can be hovered + clicked
+// without dismissing — the parent's pointer-events-none keeps the
+// pin layer transparent everywhere else.
+function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
+  const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
+  const x = Math.max(0, Math.min(1, issue.point?.x ?? 0.5)) * 100;
+  const y = Math.max(0, Math.min(1, issue.point?.y ?? 0.5)) * 100;
+  // Flip horizontally past the midline so the card stays inside the
+  // image. Same for vertical — show above the pin when it's in the
+  // bottom half of the image.
+  const flipRight = x > 60;
+  const flipBottom = y > 60;
+  const positionStyle = {
+    left: `${x}%`,
+    top: `${y}%`,
+    transform: `translate(${flipRight ? "calc(-100% - 18px)" : "18px"}, ${
+      flipBottom ? "calc(-100% - 18px)" : "18px"
+    })`,
+  };
+  return (
+    <div
+      data-qa-popover
+      role={pinned ? "dialog" : "tooltip"}
+      aria-modal={pinned}
+      style={positionStyle}
+      className="pointer-events-auto absolute z-30 w-[260px] bg-white rounded-lg shadow-floating border border-ink-200 overflow-hidden"
+    >
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-ink-100">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-semibold tabular-nums shrink-0"
+            style={{ background: sev.color }}
+          >
+            {number}
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-700 truncate">
+            {sev.label}
+          </span>
+        </div>
+        {pinned && (
+          <button
+            onClick={onClose}
+            aria-label="Close issue card"
+            title="Close (Esc)"
+            className="text-ink-400 hover:text-ink-700 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 rounded"
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      <div className="px-3 py-2 space-y-1.5 text-[12px] text-ink-700">
+        {issue.element && (
+          <div className="font-medium text-ink-900 leading-snug">
+            {issue.element}
+          </div>
+        )}
+        {issue.observation && (
+          <p className="leading-snug">{issue.observation}</p>
+        )}
+        {issue.recommendation && (
+          <p className="leading-snug text-ink-600">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 mr-1">
+              Fix
+            </span>
+            {issue.recommendation}
+          </p>
+        )}
+      </div>
+      {pinned && (
+        <label className="flex items-center gap-2 px-3 py-2 border-t border-ink-100 bg-ink-50/60 text-[12px] cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={!!fixed}
+            onChange={onToggleFixed}
+            className="rounded border-ink-300 text-brand-600 focus:ring-brand-500/40"
+          />
+          <span className={fixed ? "text-ink-500 line-through" : "text-ink-700"}>
+            Mark as done
+          </span>
+        </label>
+      )}
     </div>
   );
 }
@@ -733,6 +965,7 @@ function Pin({
   y,
   active,
   dim,
+  fixed,
   onClick,
   onMouseEnter,
   onMouseLeave,
@@ -748,11 +981,11 @@ function Pin({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      title={`Issue #${number} · ${sev.label}`}
+      title={`Issue #${number} · ${sev.label}${fixed ? " · marked done" : ""}`}
       style={{
         left: `${cx}%`,
         top: `${cy}%`,
-        background: sev.color,
+        background: fixed ? "#9ca3af" : sev.color,
       }}
       className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-white text-[11px] font-semibold tabular-nums flex items-center justify-center shadow-md ring-2 ring-white outline-none transition-all duration-150 ${
         active
@@ -760,9 +993,9 @@ function Pin({
           : dim
             ? "opacity-60 hover:opacity-100 hover:scale-110"
             : "hover:scale-110 z-10"
-      }`}
+      } ${fixed ? "opacity-70" : ""}`}
     >
-      {number}
+      {fixed ? <Check size={13} aria-hidden="true" /> : number}
     </button>
   );
 }
