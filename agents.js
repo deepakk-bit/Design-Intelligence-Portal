@@ -9,12 +9,13 @@ const readPrompt = (file) =>
 
 // Picker options for the TailGrids agent. Derived once at module load
 // from the manifest; the picker stays in sync with what the fetcher
-// can resolve. Group by category so the dropdown stays browseable as
-// the list grows past 50 entries.
-const TAILGRIDS_OPTIONS = listTailgridsComponents().map((c) => ({
-  value: c.id,
-  label: `${c.category} — ${c.name}`,
-}));
+// can resolve. Sorted alphabetically by display name — with 54+ entries
+// this is faster to scan than category grouping for users who already
+// know the component name they're looking for.
+const TAILGRIDS_OPTIONS = listTailgridsComponents()
+  .slice()
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map((c) => ({ value: c.id, label: c.name }));
 
 const interactionAnalystSchema = {
   type: "object",
