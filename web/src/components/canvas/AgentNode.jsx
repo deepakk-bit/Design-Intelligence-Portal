@@ -234,6 +234,16 @@ export default function AgentNode({ id, data, selected }) {
           kind: "tailgrids",
           has: !!r.tailgrids && typeof r.tailgrids.source === "string",
         },
+        {
+          // React+Tailwind Component Generator output. The server
+          // wraps its post-processed payload under `jsxGen` so we
+          // detect it with a single field check.
+          kind: "jsxGen",
+          has:
+            !!r.jsxGen &&
+            Array.isArray(r.jsxGen.sections) &&
+            r.jsxGen.sections.length > 0,
+        },
       ].filter((k) => k.has);
 
       const me = nodes.find((n) => n.id === id);

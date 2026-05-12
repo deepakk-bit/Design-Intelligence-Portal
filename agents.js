@@ -570,6 +570,47 @@ const qaReviewSchema = {
   },
 };
 
+const jsxGeneratorSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["componentName", "description", "sections"],
+  properties: {
+    componentName: {
+      type: "string",
+      description: "PascalCase name for the component, e.g. PricingCard.",
+    },
+    description: {
+      type: "string",
+      description:
+        "One-sentence summary of what the component is and which states are included.",
+    },
+    sections: {
+      type: "array",
+      minItems: 1,
+      maxItems: 6,
+      description:
+        "Visual states / variants. First entry is always Default. Add additional entries only for states with visibly distinct markup.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "jsx"],
+        properties: {
+          label: {
+            type: "string",
+            description:
+              "Short state name: Default, Hover, Focus, Active, Disabled, Loading, Empty, Error, Success, Selected, Dark.",
+          },
+          jsx: {
+            type: "string",
+            description:
+              "Self-contained JSX file. Starts with `export default function ...`. No imports, no hooks, no .map(), only standard HTML tags, only named Tailwind utilities.",
+          },
+        },
+      },
+    },
+  },
+};
+
 export const AGENTS = {
   interaction: {
     id: "interaction",
@@ -862,6 +903,74 @@ export const AGENTS = {
     // every agent, so we provide empty strings to keep it happy.
     systemPrompt: "",
     userInstruction: "",
+  },
+  "jsx-generator": {
+    id: "jsx-generator",
+    name: "React+Tailwind Component Generator",
+    // Text is required (the designer's brief); image is an optional
+    // reference. `inputsRequireOneOf` is set so the analyze handler
+    // skips its strict "image required" check; `inputsRequireAll`
+    // still pins text as mandatory.
+    inputs: ["text", "image"],
+    inputsRequireOneOf: ["image", "text"],
+    inputsRequireAll: ["text"],
+    textInputKind: "prompt",
+    // Sonnet by default — fast enough for iterative design work, and
+    // strong on JSX. The Quality toggle lets users upgrade to Opus for
+    // higher-stakes generations.
+    defaultModel: "sonnet",
+    extras: [
+      {
+        key: "componentType",
+        label: "Component type",
+        type: "select",
+        default: "auto",
+        options: [
+          { value: "auto", label: "Auto-detect" },
+          { value: "card", label: "Card" },
+          { value: "form", label: "Form" },
+          { value: "hero", label: "Hero / section" },
+          { value: "nav", label: "Nav / header" },
+          { value: "stat", label: "Stat / KPI" },
+          { value: "alert", label: "Alert / toast" },
+          { value: "avatar", label: "Avatar / profile" },
+          { value: "table", label: "Table" },
+          { value: "modal", label: "Modal / dialog" },
+        ],
+        help: "Hints at the dominant pattern. Auto lets the model infer from the brief.",
+      },
+      {
+        key: "accentColor",
+        label: "Accent colour",
+        type: "select",
+        default: "blue",
+        options: [
+          { value: "blue", label: "Blue" },
+          { value: "indigo", label: "Indigo" },
+          { value: "violet", label: "Violet" },
+          { value: "emerald", label: "Emerald" },
+          { value: "rose", label: "Rose" },
+          { value: "slate", label: "Slate (neutral)" },
+        ],
+        help: "Tailwind palette used for the primary CTA, focus ring, and highlights.",
+      },
+      {
+        key: "modelTier",
+        label: "Quality",
+        type: "select",
+        default: "sonnet",
+        transient: true,
+        options: [
+          { value: "sonnet", label: "Fast · Sonnet (default)" },
+          { value: "opus", label: "Best · Opus (slower / pricier)" },
+        ],
+        help: "Sonnet is the default. Upgrade to Opus for tricky layouts or pixel-tight references.",
+      },
+    ],
+    systemPrompt: readPrompt("jsx-tailwind-generator.md"),
+    schema: jsxGeneratorSchema,
+    userInstruction:
+      "Generate plugin-safe JSX + Tailwind for the component described below. Obey every constraint in the system prompt. Emit one section per meaningful visual state. Output the JSON object only — no prose.",
   },
 };
 
