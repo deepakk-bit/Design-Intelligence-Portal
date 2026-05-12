@@ -889,7 +889,6 @@ function AnnotatedBuiltImage({
 // the resulting box would overflow the viewport.
 const POPOVER_WIDTH = 320;
 const POPOVER_OFFSET = 16;
-const POPOVER_MARGIN = 8;
 function PinPopover({
   containerRef,
   issue,
@@ -900,11 +899,6 @@ function PinPopover({
   onClose,
 }) {
   const [position, setPosition] = useState(null);
-  // We measure the card's *actual* height after first render so the
-  // flip-up branch uses real numbers, not an estimate. Until that
-  // measurement lands we fall back to a conservative 240px.
-  const popoverRef = useRef(null);
-  const [measuredHeight, setMeasuredHeight] = useState(null);
 
   useLayoutEffect(() => {
     function place() {
@@ -915,47 +909,23 @@ function PinPopover({
       const py = Math.max(0, Math.min(1, issue.point?.y ?? 0.5));
       const pinX = r.left + r.width * px;
       const pinY = r.top + r.height * py;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      // Pin is fully off-screen — don't render the popover at all.
-      // (Clamping it to the viewport edge would point at nothing.)
-      if (
-        pinX < -50 ||
-        pinX > vw + 50 ||
-        pinY < -50 ||
-        pinY > vh + 50
-      ) {
-        setPosition(null);
-        return;
-      }
-
-      // Horizontal: prefer right of pin. Flip left when the card
-      // would overflow the viewport's right edge. Always clamp
-      // inside [margin, vw - width - margin] so the card stays on
-      // screen even when the pin sits near an edge.
+      // Horizontal: prefer right of pin. Flip left if the card would
+      // overflow the viewport's right edge.
       const wantRight = pinX + POPOVER_OFFSET + POPOVER_WIDTH;
-      const flipLeft = wantRight > vw - POPOVER_MARGIN;
-      let left = flipLeft
-        ? pinX - POPOVER_OFFSET - POPOVER_WIDTH
+      const flipLeft = wantRight > window.innerWidth - 8;
+      const left = flipLeft
+        ? Math.max(8, pinX - POPOVER_OFFSET - POPOVER_WIDTH)
         : pinX + POPOVER_OFFSET;
-      left = Math.max(
-        POPOVER_MARGIN,
-        Math.min(left, vw - POPOVER_WIDTH - POPOVER_MARGIN),
-      );
-
-      // Vertical: prefer below pin. Flip above when the card would
-      // overflow the bottom. Clamp inside [margin, vh - height - margin].
-      const h = measuredHeight ?? 240;
-      const flipUp = pinY + POPOVER_OFFSET + h > vh - POPOVER_MARGIN;
-      let top = flipUp
-        ? pinY - POPOVER_OFFSET - h
-        : pinY + POPOVER_OFFSET;
-      top = Math.max(
-        POPOVER_MARGIN,
-        Math.min(top, vh - h - POPOVER_MARGIN),
-      );
-
+      // Vertical: prefer below pin. Flip above if pin is in the
+      // bottom 40% of the viewport. We use a fallback height of 200
+      // because the card content is variable and the actual height
+      // isn't known until measurement; the card uses max-h to keep
+      // it bounded.
+      const estHeight = 240;
+      const flipUp = pinY + POPOVER_OFFSET + estHeight > window.innerHeight - 8;
+      const top = flipUp
+        ? Math.max(8, pinY - POPOVER_OFFSET - estHeight)
+        : Math.min(pinY + POPOVER_OFFSET, window.innerHeight - estHeight - 8);
       setPosition({ left, top });
     }
     place();
@@ -968,32 +938,11 @@ function PinPopover({
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
-  }, [issue, containerRef, measuredHeight]);
-
-  // Measure the popover's real rendered height once it mounts so the
-  // next placement (e.g. on scroll) uses the actual size, not the
-  // 240px guess. ResizeObserver keeps this fresh if the card content
-  // changes height (e.g. checkbox row appearing when pinned).
-  useLayoutEffect(() => {
-    const el = popoverRef.current;
-    if (!el) return;
-    const update = () => {
-      const h = el.offsetHeight;
-      if (h && h !== measuredHeight) setMeasuredHeight(h);
-    };
-    update();
-    let obs;
-    if (typeof ResizeObserver !== "undefined") {
-      obs = new ResizeObserver(update);
-      obs.observe(el);
-    }
-    return () => obs?.disconnect();
-  }, [position, measuredHeight]);
+  }, [issue, containerRef]);
 
   if (!position) return null;
   return createPortal(
     <div
-      ref={popoverRef}
       data-qa-popover
       role={pinned ? "dialog" : "tooltip"}
       aria-modal={pinned}
@@ -1003,7 +952,7 @@ function PinPopover({
         top: position.top,
         width: POPOVER_WIDTH,
       }}
-      className="pointer-events-auto z-[100]"
+      className="pointer-events-auto z-[60]"
     >
       <div className="relative shadow-floating rounded-lg">
         <QaReviewIssueCard
