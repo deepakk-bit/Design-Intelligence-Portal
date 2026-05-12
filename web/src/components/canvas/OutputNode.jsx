@@ -870,21 +870,25 @@ function AnnotatedBuiltImage({
   );
 }
 
-// Floating card anchored to a pin. The pin's normalised x/y lives on
-// the issue itself; we flip the card to the opposite side of the
-// pin when it would otherwise overflow the image edge. The whole
-// thing is `pointer-events-auto` so the card can be hovered + clicked
-// without dismissing — the parent's pointer-events-none keeps the
-// pin layer transparent everywhere else.
+// Floating card anchored to a pin. Reuses the same QaReviewIssueCard
+// component the list view renders so the two views look identical
+// at the issue-level — same header, severity badge, Design/Built
+// diff cells, fix line, and checkbox. The popover just adds:
+//   - absolute positioning relative to the image with smart flip when
+//     the pin is near the right/bottom edge
+//   - a "close (X)" button visible only when the popover is pinned
+//
+// The whole thing is `pointer-events-auto` so the card can be hovered
+// and clicked without dismissing — the parent's pointer-events-none
+// keeps the pin layer transparent everywhere else.
 function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
-  const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
   const x = Math.max(0, Math.min(1, issue.point?.x ?? 0.5)) * 100;
   const y = Math.max(0, Math.min(1, issue.point?.y ?? 0.5)) * 100;
   // Flip horizontally past the midline so the card stays inside the
   // image. Same for vertical — show above the pin when it's in the
   // bottom half of the image.
-  const flipRight = x > 60;
-  const flipBottom = y > 60;
+  const flipRight = x > 55;
+  const flipBottom = y > 55;
   const positionStyle = {
     left: `${x}%`,
     top: `${y}%`,
@@ -898,62 +902,30 @@ function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
       role={pinned ? "dialog" : "tooltip"}
       aria-modal={pinned}
       style={positionStyle}
-      className="pointer-events-auto absolute z-30 w-[260px] bg-white rounded-lg shadow-floating border border-ink-200 overflow-hidden"
+      className="pointer-events-auto absolute z-30 w-[320px] max-w-[calc(100%-32px)]"
     >
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-ink-100">
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-semibold tabular-nums shrink-0"
-            style={{ background: sev.color }}
-          >
-            {number}
-          </span>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-700 truncate">
-            {sev.label}
-          </span>
-        </div>
+      <div className="relative shadow-floating rounded-lg">
+        <QaReviewIssueCard
+          index={number}
+          issue={issue}
+          fixed={fixed}
+          onToggle={onToggleFixed}
+          active={true}
+          onMouseEnter={() => {}}
+          onMouseLeave={() => {}}
+          cardRef={() => {}}
+        />
         {pinned && (
           <button
             onClick={onClose}
             aria-label="Close issue card"
             title="Close (Esc)"
-            className="text-ink-400 hover:text-ink-700 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 rounded"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/90 text-ink-500 hover:text-ink-900 hover:bg-white border border-ink-200 flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 shadow-sm"
           >
             <X size={13} aria-hidden="true" />
           </button>
         )}
       </div>
-      <div className="px-3 py-2 space-y-1.5 text-[12px] text-ink-700">
-        {issue.element && (
-          <div className="font-medium text-ink-900 leading-snug">
-            {issue.element}
-          </div>
-        )}
-        {issue.observation && (
-          <p className="leading-snug">{issue.observation}</p>
-        )}
-        {issue.recommendation && (
-          <p className="leading-snug text-ink-600">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-500 mr-1">
-              Fix
-            </span>
-            {issue.recommendation}
-          </p>
-        )}
-      </div>
-      {pinned && (
-        <label className="flex items-center gap-2 px-3 py-2 border-t border-ink-100 bg-ink-50/60 text-[12px] cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={!!fixed}
-            onChange={onToggleFixed}
-            className="rounded border-ink-300 text-brand-600 focus:ring-brand-500/40"
-          />
-          <span className={fixed ? "text-ink-500 line-through" : "text-ink-700"}>
-            Mark as done
-          </span>
-        </label>
-      )}
     </div>
   );
 }
