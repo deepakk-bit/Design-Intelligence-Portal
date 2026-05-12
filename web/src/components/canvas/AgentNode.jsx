@@ -742,6 +742,12 @@ function Select({ value, options, onChange }) {
   // the height we want (capped at SELECT_MAX_MENU_HEIGHT) and whether
   // there's room below or whether we should flip above — same
   // behaviour native <select> uses to keep the menu on-screen.
+  //
+  // The capture-phase scroll listener filters out events that
+  // originate INSIDE the menu — otherwise scrolling within the
+  // listbox would re-fire `place()` → re-fire the auto-scroll-to-
+  // selected effect below → snap the user back to the selected row,
+  // making the menu feel un-scrollable.
   useLayoutEffect(() => {
     if (!open) return;
     function place() {
@@ -762,24 +768,31 @@ function Select({ value, options, onChange }) {
       setMenuRect({ left: r.left, top, width: r.width, maxHeight });
     }
     place();
-    window.addEventListener("scroll", place, true);
+    function onScroll(e) {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      place();
+    }
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", place);
     return () => {
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", place);
     };
   }, [open]);
 
-  // When the menu opens, scroll the currently-selected option into
-  // view. With 54 items in the TailGrids picker the user's choice
-  // would otherwise be off-screen on every re-open.
+  // Scroll the currently-selected option into view exactly ONCE per
+  // open. With 54 items in the TailGrids picker the user's choice
+  // would otherwise be off-screen on every re-open. Critically, we
+  // can't depend on `menuRect` here — that updates whenever the
+  // window scrolls, which would fight any scroll the user does
+  // inside the menu after it opens.
   useEffect(() => {
     if (!open || !menuRef.current) return;
     const selectedEl = menuRef.current.querySelector(
       "[data-selected='true']",
     );
     if (selectedEl) selectedEl.scrollIntoView({ block: "nearest" });
-  }, [open, menuRect]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
