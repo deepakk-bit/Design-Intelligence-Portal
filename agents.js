@@ -503,8 +503,18 @@ const qaReviewSchema = {
             description:
               "Normalised pin coordinate on the BUILT image (top-left = 0,0; bottom-right = 1,1). The frontend draws a numbered pin here so the designer can see where each issue lives.",
             properties: {
-              x: { type: "number", minimum: 0, maximum: 1 },
-              y: { type: "number", minimum: 0, maximum: 1 },
+              // Anthropic's structured-output validator rejects
+              // minimum/maximum constraints on `number` types, so we
+              // express the 0..1 range in the description instead and
+              // clamp client-side if the model returns out-of-range.
+              x: {
+                type: "number",
+                description: "Horizontal position, 0 (left edge) to 1 (right edge).",
+              },
+              y: {
+                type: "number",
+                description: "Vertical position, 0 (top edge) to 1 (bottom edge).",
+              },
             },
           },
         },
