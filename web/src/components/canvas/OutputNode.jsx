@@ -1,6 +1,42 @@
 import { Handle, Position } from "@xyflow/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Component as ReactComponent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
+
+// Tiny error boundary so a render-time throw inside the popover or
+// issue card doesn't take down the whole canvas. We surface the error
+// on `window.__popoverErr` for debugging and fall back to rendering
+// nothing so the surrounding canvas stays usable.
+class PopoverErrorBoundary extends ReactComponent {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    try {
+      window.__popoverErr = {
+        message: error?.message,
+        stack: error?.stack,
+        componentStack: info?.componentStack,
+      };
+    } catch {}
+    // eslint-disable-next-line no-console
+    console.error("[PinPopover crash]", error, info);
+  }
+  render() {
+    if (this.state.error) return null;
+    return this.props.children;
+  }
+}
 import {
   Trash2,
   AlertCircle,
@@ -873,15 +909,17 @@ function AnnotatedBuiltImage({
         })}
       </div>
       {showPopovers && popoverIssue && (
-        <PinPopover
-          containerRef={containerRef}
-          issue={popoverIssue}
-          number={popoverIdx + 1}
-          pinned={pinnedIndex === popoverIdx}
-          fixed={fixedSet?.has(popoverIdx)}
-          onToggleFixed={() => onToggleFixed?.(popoverIdx)}
-          onClose={() => onPinnedClose?.()}
-        />
+        <PopoverErrorBoundary>
+          <PinPopover
+            containerRef={containerRef}
+            issue={popoverIssue}
+            number={popoverIdx + 1}
+            pinned={pinnedIndex === popoverIdx}
+            fixed={fixedSet?.has(popoverIdx)}
+            onToggleFixed={() => onToggleFixed?.(popoverIdx)}
+            onClose={() => onPinnedClose?.()}
+          />
+        </PopoverErrorBoundary>
       )}
     </div>
   );
