@@ -882,6 +882,12 @@ function AnnotatedBuiltImage({
 // and clicked without dismissing — the parent's pointer-events-none
 // keeps the pin layer transparent everywhere else.
 function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
+  // Belt-and-suspenders guard: if `issue` is somehow null or
+  // malformed, render nothing instead of crashing. The parent gates
+  // PinPopover behind `popoverIssue &&`, but a defensive check here
+  // means a future caller can't unexpectedly take down the whole
+  // canvas tree by passing undefined.
+  if (!issue) return null;
   const x = Math.max(0, Math.min(1, issue.point?.x ?? 0.5)) * 100;
   const y = Math.max(0, Math.min(1, issue.point?.y ?? 0.5)) * 100;
   // Flip horizontally past the midline so the card stays inside the
@@ -1040,6 +1046,7 @@ function QaReviewIssueCard({
   onMouseLeave,
   cardRef,
 }) {
+  if (!issue) return null;
   const sev = SEVERITY[issue.severity] ?? SEVERITY.low;
   return (
     <div
