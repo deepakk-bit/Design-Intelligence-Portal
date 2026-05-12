@@ -1861,7 +1861,11 @@ function TailgridsBody({ result }) {
     );
   }
 
-  const composed = !!tg.html && !!tg.jsx;
+  // Show the iframe preview whenever the server produced rendered
+  // HTML, regardless of whether plugin-ready JSX is also available.
+  // (Alert's special-case renderer fills html but not jsx — the
+  // visual still paints correctly inside the iframe.)
+  const composed = !!tg.html;
   const lineCount = tg.source.split("\n").length;
   const byteCount = tg.source.length;
 
