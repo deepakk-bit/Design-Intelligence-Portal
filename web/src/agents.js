@@ -160,6 +160,66 @@ export const AGENT_CATEGORIES = [
     label: "Components",
     agents: [
       {
+        id: "jsx-generator",
+        name: "React+Tailwind Component Generator",
+        description:
+          "Describe a component (and optionally drop a reference screenshot) — generates plugin-safe JSX + Tailwind for the default state plus its meaningful variants. Copy the code straight into the React (Tailwind) to Design Figma plugin.",
+        icon: Sparkles,
+        accent: "#0ea5e9",
+        inputs: ["text", "image"],
+        inputsRequireOneOf: ["image", "text"],
+        inputsRequireAll: ["text"],
+        textInputKind: "prompt",
+        extras: [
+          {
+            key: "componentType",
+            label: "Component type",
+            type: "select",
+            default: "auto",
+            options: [
+              { value: "auto", label: "Auto-detect" },
+              { value: "card", label: "Card" },
+              { value: "form", label: "Form" },
+              { value: "hero", label: "Hero / section" },
+              { value: "nav", label: "Nav / header" },
+              { value: "stat", label: "Stat / KPI" },
+              { value: "alert", label: "Alert / toast" },
+              { value: "avatar", label: "Avatar / profile" },
+              { value: "table", label: "Table" },
+              { value: "modal", label: "Modal / dialog" },
+            ],
+            help: "Hints at the dominant pattern. Auto lets the model infer from the brief.",
+          },
+          {
+            key: "accentColor",
+            label: "Accent colour",
+            type: "select",
+            default: "blue",
+            options: [
+              { value: "blue", label: "Blue" },
+              { value: "indigo", label: "Indigo" },
+              { value: "violet", label: "Violet" },
+              { value: "emerald", label: "Emerald" },
+              { value: "rose", label: "Rose" },
+              { value: "slate", label: "Slate (neutral)" },
+            ],
+            help: "Tailwind palette used for the primary CTA, focus ring, and highlights.",
+          },
+          {
+            key: "modelTier",
+            label: "Quality",
+            type: "select",
+            default: "sonnet",
+            transient: true,
+            options: [
+              { value: "sonnet", label: "Fast · Sonnet (default)" },
+              { value: "opus", label: "Best · Opus (slower / pricier)" },
+            ],
+            help: "Sonnet is the default. Upgrade to Opus for tricky layouts or pixel-tight references.",
+          },
+        ],
+      },
+      {
         id: "tailgrids",
         name: "Component Generator (TailGrids)",
         description:

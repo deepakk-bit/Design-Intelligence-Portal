@@ -128,6 +128,12 @@ const KINDS = {
     accent: "#3056D3",
     sub: "Live preview + React (Tailwind) JSX",
   },
+  jsxGen: {
+    label: "Generated component",
+    icon: Sparkles,
+    accent: "#0ea5e9",
+    sub: "Live preview + plugin-ready JSX",
+  },
 };
 
 const SEVERITY = {
@@ -208,6 +214,13 @@ export default function OutputNode({ id, data, selected }) {
             />
           </>
         )}
+        {kind === "jsxGen" && result?.jsxGen?.combinedJsx && (
+          <JsxGenCopyButton
+            payload={result.jsxGen.combinedJsx}
+            label="Copy JSX"
+            title="Copy the full component (with each state) as a single JSX file"
+          />
+        )}
         <button
           onClick={() => removeNode(id)}
           aria-label={`Delete ${meta.label} output`}
@@ -234,6 +247,7 @@ export default function OutputNode({ id, data, selected }) {
         )}
         {kind === "references" && <ReferencesBody result={result} />}
         {kind === "tailgrids" && <TailgridsBody result={result} />}
+        {kind === "jsxGen" && <JsxGeneratorBody result={result} />}
       </div>
     </div>
   );
@@ -2088,6 +2102,163 @@ function TailgridsCopyButton({ source, jsx, previewSourceJoined }) {
       ) : (
         <>
           <Copy size={13} aria-hidden="true" /> {label}
+        </>
+      )}
+    </button>
+  );
+}
+
+// --- React+Tailwind Component Generator output -------------------------
+
+// Body for the jsx-generator output card. Renders each state section
+// stacked vertically — preview iframe on top, raw JSX underneath —
+// mirroring the visual rhythm of TailgridsBody so the canvas reads
+// consistently across generators.
+function JsxGeneratorBody({ result }) {
+  const g = result?.jsxGen;
+  if (!g || !Array.isArray(g.sections) || g.sections.length === 0) {
+    return (
+      <div className="text-[12px] text-ink-400 italic">
+        No component produced for this run.
+      </div>
+    );
+  }
+  const name = g.componentName || "Component";
+  const description = g.description || "";
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-2 text-[12px] text-ink-500">
+        <div className="min-w-0">
+          <div className="text-ink-900 font-semibold truncate">{name}</div>
+          {description && (
+            <p className="mt-1 text-[11px] leading-snug text-ink-500">
+              {description}
+            </p>
+          )}
+        </div>
+        {g.sections.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] shrink-0">
+            {g.sections.map((s, i) => (
+              <span
+                key={i}
+                className="font-mono bg-ink-100 text-ink-700 rounded px-1.5 py-0.5"
+              >
+                {s.label}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {g.sections.map((section, i) => (
+        <JsxGeneratorSection
+          key={i}
+          section={section}
+          componentName={name}
+          index={i}
+        />
+      ))}
+
+      <p className="text-[11px] text-ink-500 leading-snug">
+        Hit <span className="font-medium text-ink-900">Copy JSX</span> in the
+        card header to grab a single self-contained file — first the default
+        state as the canonical export, then each additional state appended as
+        commented blocks you can uncomment to inspect.
+      </p>
+    </div>
+  );
+}
+
+// One state section: header chip with the state label + a per-section
+// copy button, the live preview iframe, and the raw JSX body.
+function JsxGeneratorSection({ section, componentName, index }) {
+  const label = section.label || (index === 0 ? "Default" : `State ${index + 1}`);
+  const previewTitle = `${componentName} · ${label}`;
+  const lineCount = section.jsx ? section.jsx.split("\n").length : 0;
+  return (
+    <div className="rounded-lg border border-ink-200 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-ink-100 bg-ink-50">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-700">
+            {label}
+          </span>
+          <span className="text-[10px] text-ink-500">
+            {lineCount} lines
+          </span>
+        </div>
+        <JsxGenCopyButton
+          payload={section.jsx}
+          label="Copy state"
+          title={`Copy just the ${label} state's JSX`}
+          variant="ghost"
+        />
+      </div>
+      {section.html ? (
+        <MatrixPreview srcDoc={section.html} title={previewTitle} />
+      ) : (
+        <div className="px-4 py-6 text-center text-[11px] text-ink-500">
+          Preview unavailable.
+        </div>
+      )}
+      <div className="bg-ink-900 text-ink-50 border-t border-ink-800">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-ink-800 text-[11px] text-ink-400">
+          <span className="font-mono">{componentName}.tsx</span>
+          <span>{label}</span>
+        </div>
+        <pre className="px-3 py-2 text-[11px] leading-relaxed font-mono overflow-x-auto max-h-[280px] scroll-thin">
+          <code>{section.jsx}</code>
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+// Copy-to-clipboard button used by the jsx-generator card. Two variants:
+// `solid` for the card header (matches TailgridsCopyButton), `ghost` for
+// per-section copy chips inside the body.
+function JsxGenCopyButton({ payload, label = "Copy", title, variant = "solid" }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    if (typeof payload !== "string" || !payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+  const base =
+    "inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40";
+  const ghostBase =
+    "inline-flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40";
+  const className =
+    variant === "ghost"
+      ? `${ghostBase} ${
+          copied
+            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+            : "bg-white text-ink-700 border border-ink-200 hover:border-brand-400 hover:text-brand-600"
+        }`
+      : `${base} ${
+          copied
+            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+            : "bg-brand-500 text-white hover:bg-brand-600"
+        }`;
+  const iconSize = variant === "ghost" ? 11 : 13;
+  return (
+    <button
+      onClick={copy}
+      title={title}
+      aria-label={copied ? "Copied to clipboard" : title || label}
+      className={className}
+    >
+      {copied ? (
+        <>
+          <Check size={iconSize} aria-hidden="true" /> Copied
+        </>
+      ) : (
+        <>
+          <Copy size={iconSize} aria-hidden="true" /> {label}
         </>
       )}
     </button>
