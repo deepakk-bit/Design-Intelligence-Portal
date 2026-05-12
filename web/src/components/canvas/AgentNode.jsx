@@ -803,19 +803,29 @@ function Select({ value, options, onChange }) {
     };
   }, [open]);
 
+  // React Flow v12 uses `pointerdown` (not `mousedown`) for node
+  // drag + selection. Stopping propagation on every pointer-ish
+  // event family — pointerdown, mousedown, click — keeps the canvas
+  // from grabbing the click and the node from drifting under the
+  // cursor. The `nodrag nopan` class set on the wrapper covers the
+  // CSS-based opt-outs React Flow checks via `closest()`.
+  function stop(e) {
+    e.stopPropagation();
+  }
   return (
-    <div className="nodrag relative">
+    <div className="nodrag nopan relative">
       <button
         ref={triggerRef}
         type="button"
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={stop}
+        onMouseDown={stop}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((o) => !o);
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 text-left flex items-center justify-between gap-2 outline-none transition ${
+        className={`nodrag nopan w-full text-[13px] bg-ink-50 rounded-lg px-2.5 py-2 text-left flex items-center justify-between gap-2 outline-none transition ${
           open
             ? "ring-2 ring-brand-500/40"
             : "hover:bg-ink-100 focus-visible:ring-2 focus-visible:ring-brand-500/40"
@@ -845,8 +855,9 @@ function Select({ value, options, onChange }) {
               maxHeight: menuRect.maxHeight,
             }}
             className="z-[60] bg-white rounded-lg border border-ink-200 shadow-floating overflow-y-auto overscroll-contain scroll-thin py-1"
-            onMouseDown={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
+            onPointerDown={stop}
+            onMouseDown={stop}
+            onWheel={stop}
           >
             {options.map((opt) => {
               const selected = opt.value === value;
@@ -857,6 +868,8 @@ function Select({ value, options, onChange }) {
                   role="option"
                   aria-selected={selected}
                   data-selected={selected ? "true" : "false"}
+                  onPointerDown={stop}
+                  onMouseDown={stop}
                   onClick={(e) => {
                     e.stopPropagation();
                     onChange(opt.value);
