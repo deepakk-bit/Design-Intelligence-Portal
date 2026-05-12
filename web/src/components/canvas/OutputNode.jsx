@@ -204,6 +204,7 @@ export default function OutputNode({ id, data, selected }) {
             <TailgridsCopyButton
               source={result.tailgrids.source}
               jsx={result.tailgrids.jsx}
+              previewSourceJoined={result.tailgrids.previewSourceJoined}
             />
           </>
         )}
@@ -2032,10 +2033,30 @@ function TailgridsSketchButton({ slug }) {
 // composer produced one; falls back to the raw .tsx for components
 // that didn't compose. The label flips so the user knows what
 // they're getting on click.
-function TailgridsCopyButton({ source, jsx }) {
+function TailgridsCopyButton({ source, jsx, previewSourceJoined }) {
   const [copied, setCopied] = useState(false);
+  // Payload priority:
+  //   1. jsx (self-contained file for composable components)
+  //   2. previewSourceJoined (concatenated upstream preview .tsx
+  //      files — usage examples like `<Alert variant="success" />`)
+  //   3. source (raw registry .tsx — the component definition,
+  //      shown only when even the preview files aren't available)
   const hasJsx = typeof jsx === "string" && jsx.length > 0;
-  const payload = hasJsx ? jsx : source;
+  const hasPreviewExamples =
+    typeof previewSourceJoined === "string" && previewSourceJoined.length > 0;
+  const mode = hasJsx ? "react" : hasPreviewExamples ? "examples" : "source";
+  const payload = hasJsx ? jsx : hasPreviewExamples ? previewSourceJoined : source;
+  const label = {
+    react: "Copy React",
+    examples: "Copy examples",
+    source: "Copy source",
+  }[mode];
+  const title = {
+    react: "Copy a self-contained React component file with the showcase",
+    examples:
+      "Copy the upstream usage examples (Variants, Sizes, Custom, …) as React .tsx",
+    source: "Copy the raw .tsx source for this component",
+  }[mode];
   async function copy() {
     try {
       await navigator.clipboard.writeText(payload);
@@ -2048,18 +2069,8 @@ function TailgridsCopyButton({ source, jsx }) {
   return (
     <button
       onClick={copy}
-      title={
-        hasJsx
-          ? "Copy a React component file with the full showcase"
-          : "Copy raw .tsx source"
-      }
-      aria-label={
-        copied
-          ? "React component copied to clipboard"
-          : hasJsx
-            ? "Copy a React component file with the full TailGrids showcase"
-            : "Copy the raw .tsx source for this component"
-      }
+      title={title}
+      aria-label={copied ? "Code copied to clipboard" : title}
       className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
         copied
           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -2072,8 +2083,7 @@ function TailgridsCopyButton({ source, jsx }) {
         </>
       ) : (
         <>
-          <Copy size={13} aria-hidden="true" />{" "}
-          {hasJsx ? "Copy React" : "Copy source"}
+          <Copy size={13} aria-hidden="true" /> {label}
         </>
       )}
     </button>
