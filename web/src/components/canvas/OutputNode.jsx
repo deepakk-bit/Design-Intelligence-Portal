@@ -855,104 +855,54 @@ function AnnotatedBuiltImage({
             />
           );
         })}
+        {showPopovers && popoverIssue && (
+          <PinPopover
+            issue={popoverIssue}
+            number={popoverIdx + 1}
+            pinned={pinnedIndex === popoverIdx}
+            fixed={fixedSet?.has(popoverIdx)}
+            onToggleFixed={() => onToggleFixed?.(popoverIdx)}
+            onClose={() => onPinnedClose?.()}
+          />
+        )}
       </div>
-      {showPopovers && popoverIssue && (
-        <PinPopover
-          containerRef={containerRef}
-          issue={popoverIssue}
-          number={popoverIdx + 1}
-          pinned={pinnedIndex === popoverIdx}
-          fixed={fixedSet?.has(popoverIdx)}
-          onToggleFixed={() => onToggleFixed?.(popoverIdx)}
-          onClose={() => onPinnedClose?.()}
-        />
-      )}
     </div>
   );
 }
 
-// Floating card anchored to a pin. Reuses QaReviewIssueCard so the
-// hover / pinned card is pixel-identical to its list-view sibling.
+// Floating card anchored to a pin. Reuses the same QaReviewIssueCard
+// component the list view renders so the two views look identical
+// at the issue-level — same header, severity badge, Design/Built
+// diff cells, fix line, and checkbox. The popover just adds:
+//   - absolute positioning relative to the image with smart flip when
+//     the pin is near the right/bottom edge
+//   - a "close (X)" button visible only when the popover is pinned
 //
-// Critical positioning note: the card is portaled to document.body
-// with `position: fixed` rather than rendered inside the image
-// container. That's because the OutputNode card has its own
-// `overflow-y-auto` scroll wrapper AND the image div uses
-// `overflow-hidden` to clip the rounded corners — both would
-// otherwise crop the popover when it overflows the image edges.
-// By portaling out, the card floats above every parent clipping
-// boundary.
-//
-// Pin coordinates are normalised (0..1) of the image; we resolve
-// them to absolute viewport pixels via the container's
-// getBoundingClientRect, then flip horizontally / vertically when
-// the resulting box would overflow the viewport.
-const POPOVER_WIDTH = 320;
-const POPOVER_OFFSET = 16;
-function PinPopover({
-  containerRef,
-  issue,
-  number,
-  pinned,
-  fixed,
-  onToggleFixed,
-  onClose,
-}) {
-  const [position, setPosition] = useState(null);
-
-  useLayoutEffect(() => {
-    function place() {
-      const c = containerRef?.current;
-      if (!c) return;
-      const r = c.getBoundingClientRect();
-      const px = Math.max(0, Math.min(1, issue.point?.x ?? 0.5));
-      const py = Math.max(0, Math.min(1, issue.point?.y ?? 0.5));
-      const pinX = r.left + r.width * px;
-      const pinY = r.top + r.height * py;
-      // Horizontal: prefer right of pin. Flip left if the card would
-      // overflow the viewport's right edge.
-      const wantRight = pinX + POPOVER_OFFSET + POPOVER_WIDTH;
-      const flipLeft = wantRight > window.innerWidth - 8;
-      const left = flipLeft
-        ? Math.max(8, pinX - POPOVER_OFFSET - POPOVER_WIDTH)
-        : pinX + POPOVER_OFFSET;
-      // Vertical: prefer below pin. Flip above if pin is in the
-      // bottom 40% of the viewport. We use a fallback height of 200
-      // because the card content is variable and the actual height
-      // isn't known until measurement; the card uses max-h to keep
-      // it bounded.
-      const estHeight = 240;
-      const flipUp = pinY + POPOVER_OFFSET + estHeight > window.innerHeight - 8;
-      const top = flipUp
-        ? Math.max(8, pinY - POPOVER_OFFSET - estHeight)
-        : Math.min(pinY + POPOVER_OFFSET, window.innerHeight - estHeight - 8);
-      setPosition({ left, top });
-    }
-    place();
-    // Reposition on scroll (canvas pan, page scroll, parent scroll)
-    // and on window resize. Capture catches scrolls in any
-    // scrollable ancestor.
-    window.addEventListener("scroll", place, true);
-    window.addEventListener("resize", place);
-    return () => {
-      window.removeEventListener("scroll", place, true);
-      window.removeEventListener("resize", place);
-    };
-  }, [issue, containerRef]);
-
-  if (!position) return null;
-  return createPortal(
+// The whole thing is `pointer-events-auto` so the card can be hovered
+// and clicked without dismissing — the parent's pointer-events-none
+// keeps the pin layer transparent everywhere else.
+function PinPopover({ issue, number, pinned, fixed, onToggleFixed, onClose }) {
+  const x = Math.max(0, Math.min(1, issue.point?.x ?? 0.5)) * 100;
+  const y = Math.max(0, Math.min(1, issue.point?.y ?? 0.5)) * 100;
+  // Flip horizontally past the midline so the card stays inside the
+  // image. Same for vertical — show above the pin when it's in the
+  // bottom half of the image.
+  const flipRight = x > 55;
+  const flipBottom = y > 55;
+  const positionStyle = {
+    left: `${x}%`,
+    top: `${y}%`,
+    transform: `translate(${flipRight ? "calc(-100% - 18px)" : "18px"}, ${
+      flipBottom ? "calc(-100% - 18px)" : "18px"
+    })`,
+  };
+  return (
     <div
       data-qa-popover
       role={pinned ? "dialog" : "tooltip"}
       aria-modal={pinned}
-      style={{
-        position: "fixed",
-        left: position.left,
-        top: position.top,
-        width: POPOVER_WIDTH,
-      }}
-      className="pointer-events-auto z-[60]"
+      style={positionStyle}
+      className="pointer-events-auto absolute z-30 w-[320px] max-w-[calc(100%-32px)]"
     >
       <div className="relative shadow-floating rounded-lg">
         <QaReviewIssueCard
@@ -976,8 +926,7 @@ function PinPopover({
           </button>
         )}
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }
 
