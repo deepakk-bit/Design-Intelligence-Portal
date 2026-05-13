@@ -7,12 +7,7 @@
   "editorType": ["figma"],
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": [
-      "http://localhost:4000",
-      "https://design-intelligence-portal.vercel.app",
-      "https://cdn.tailwindcss.com",
-      "https://images.unsplash.com"
-    ],
-    "reasoning": "localhost:4000 is the dev server; the Vercel domain is the production deployment. cdn.tailwindcss.com paints saved-design previews in the gallery; images.unsplash.com loads photo assets the generator embeds."
+    "allowedDomains": ["*"],
+    "reasoning": "The plugin's Deployment URL is user-configurable so anyone can self-host the library on Railway, Vercel, Fly, render, fly.io, a private VPN, etc. We can't enumerate every possible host. Preview iframes load Tailwind from cdn.tailwindcss.com and image fills load from any URL the generator emitted (Unsplash by default, but the prompt allows any public CDN). `*` is required to support all these legitimately."
   }
 }
