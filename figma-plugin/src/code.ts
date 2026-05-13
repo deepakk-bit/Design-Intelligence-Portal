@@ -1,9 +1,13 @@
 // Sandbox-context entry. Runs in Figma's V8 sandbox (no DOM). Bridges
 // the UI iframe to the figma.* API.
 //
-// P2 scope: open the UI, persist/read pairing config, place a labeled
-// placeholder frame when the UI requests `insert-placeholder`. The real
-// HTML→Figma converter lands in P3 with a new `insert-tree` message.
+// Handles pairing-config persistence plus two insert paths:
+//   - `insert-placeholder` — labeled dashed frame (kept as a fallback).
+//   - `insert-tree` — the real HTML→Figma converter; the UI walks the
+//     rendered DOM, sends a serialized tree here, and we materialize
+//     it as figma.* nodes.
+
+import { insertTree } from "./insert-tree";
 
 type ClientConfig = {
   apiBase?: string;
@@ -102,6 +106,35 @@ figma.ui.onmessage = async (msg: any) => {
         nodeId: frame.id,
         sectionLabel: msg.sectionLabel ?? null,
       });
+      return;
+    }
+    case "insert-tree": {
+      try {
+        const nodeId = await insertTree(msg.tree, {
+          componentName: String(msg.componentName ?? "Saved component"),
+          sectionLabel: msg.sectionLabel ?? null,
+        });
+        if (Array.isArray(msg.warnings) && msg.warnings.length > 0) {
+          figma.notify(
+            `Inserted with ${msg.warnings.length} warning(s) — see plugin UI.`,
+          );
+        } else {
+          figma.notify("Inserted into canvas");
+        }
+        figma.ui.postMessage({
+          type: "inserted",
+          nodeId,
+          sectionLabel: msg.sectionLabel ?? null,
+        });
+      } catch (err: any) {
+        figma.notify(`Insert failed: ${err?.message ?? err}`, {
+          error: true,
+        });
+        figma.ui.postMessage({
+          type: "insert-failed",
+          message: String(err?.message ?? err),
+        });
+      }
       return;
     }
     case "notify": {
