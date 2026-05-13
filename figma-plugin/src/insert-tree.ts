@@ -1,8 +1,11 @@
 // Sandbox-side tree → figma.* nodes. Receives the serialized tree from
 // the UI iframe and creates real Figma nodes mirroring it.
 
+type FigmaRGB = { r: number; g: number; b: number };
 type FigmaRGBA = { r: number; g: number; b: number; a: number };
-type FigmaSolidFill = { type: "SOLID"; color: FigmaRGBA };
+// Mirrors Figma's SolidPaint — color is RGB (no alpha), opacity carries
+// transparency. Wire shape from html-to-tree.ts.
+type FigmaSolidFill = { type: "SOLID"; color: FigmaRGB; opacity: number };
 type EffectSpec = {
   type: "DROP_SHADOW";
   color: FigmaRGBA;
@@ -247,18 +250,34 @@ export async function insertTree(
     ),
   );
 
-  const node = await createFrame({
-    ...root,
-    name: meta.sectionLabel
-      ? `${meta.componentName} · ${meta.sectionLabel}`
-      : meta.componentName,
-  });
-  const center = figma.viewport.center;
-  node.x = Math.round(center.x - root.w / 2);
-  node.y = Math.round(center.y - root.h / 2);
-  figma.currentPage.selection = [node];
-  figma.viewport.scrollAndZoomIntoView([node]);
-  return node.id;
+  // Track the partial root so we can delete it on failure. Without this
+  // a validation error mid-walk (bad fill shape, malformed SVG, font
+  // miss) leaves a half-built frame on the canvas that the user has to
+  // clean up by hand.
+  let node: FrameNode | null = null;
+  try {
+    node = await createFrame({
+      ...root,
+      name: meta.sectionLabel
+        ? `${meta.componentName} · ${meta.sectionLabel}`
+        : meta.componentName,
+    });
+    const center = figma.viewport.center;
+    node.x = Math.round(center.x - root.w / 2);
+    node.y = Math.round(center.y - root.h / 2);
+    figma.currentPage.selection = [node];
+    figma.viewport.scrollAndZoomIntoView([node]);
+    return node.id;
+  } catch (err) {
+    if (node) {
+      try {
+        node.remove();
+      } catch {
+        /* node may already be detached if the failure happened during append */
+      }
+    }
+    throw err;
+  }
 }
 
 function collectWeights(spec: NodeSpec, out: Set<number>) {

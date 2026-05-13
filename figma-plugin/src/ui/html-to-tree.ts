@@ -9,10 +9,22 @@
 //   - Real <img> URLs only
 // So we can stick to computed styles + a small set of tag→node mappings.
 
+export type FigmaRGB = { r: number; g: number; b: number };
 export type FigmaRGBA = { r: number; g: number; b: number; a: number };
 
-export type FigmaSolidFill = { type: "SOLID"; color: FigmaRGBA };
+// SolidPaint matches Figma's actual contract: color is RGB (no alpha)
+// and transparency lives in a separate opacity field. Earlier versions
+// packed alpha into color.a and Figma's `set_fills` rejected the paint
+// with "Unrecognized key 'a' at [0].color" before any children could
+// render.
+export type FigmaSolidFill = {
+  type: "SOLID";
+  color: FigmaRGB;
+  opacity: number;
+};
 
+// Effect shadows use RGBA because Figma's DropShadowEffect.color *does*
+// include alpha. Keep both shapes distinct so they can't be confused.
 export type Effect = {
   type: "DROP_SHADOW";
   color: FigmaRGBA;
@@ -308,7 +320,13 @@ function shiftToOrigin(frame: FrameNodeSpec) {
 function solidFill(css: string): FigmaSolidFill[] {
   const c = parseColor(css);
   if (!c || c.a === 0) return [];
-  return [{ type: "SOLID", color: c }];
+  return [
+    {
+      type: "SOLID",
+      color: { r: c.r, g: c.g, b: c.b },
+      opacity: c.a,
+    },
+  ];
 }
 
 function parseColor(css: string): FigmaRGBA | null {
@@ -338,7 +356,13 @@ function borderStroke(style: CSSStyleDeclaration): FigmaSolidFill[] {
   if (w <= 0) return [];
   const c = parseColor(style.borderTopColor);
   if (!c || c.a === 0) return [];
-  return [{ type: "SOLID", color: c }];
+  return [
+    {
+      type: "SOLID",
+      color: { r: c.r, g: c.g, b: c.b },
+      opacity: c.a,
+    },
+  ];
 }
 
 function readRadii(
