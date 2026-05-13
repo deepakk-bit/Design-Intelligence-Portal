@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Design Intelligence</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --bg-soft: #f8fafc;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --text-dim: #64748b;
+        --accent: #0ea5e9;
+        --accent-hover: #0284c7;
+        --error: #b91c1c;
+        --error-bg: #fef2f2;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f172a;
+          --bg-soft: #1e293b;
+          --border: #334155;
+          --text: #f1f5f9;
+          --text-dim: #94a3b8;
+          --error-bg: #2a1414;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 13px;
+        color: var(--text);
+        background: var(--bg);
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--accent); color: var(--accent); }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      button.primary {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+      button.primary:hover { background: var(--accent-hover); color: white; }
+      input[type="text"] {
+        font: inherit;
+        color: inherit;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 10px;
+        width: 100%;
+        outline: none;
+      }
+      input[type="text"]:focus { border-color: var(--accent); }
+      .scroll { overflow-y: auto; }
+      .scroll::-webkit-scrollbar { width: 8px; }
+      .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- BUNDLE -->
+  </body>
+</html>
