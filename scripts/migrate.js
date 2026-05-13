@@ -18,11 +18,14 @@ const MIGRATIONS_DIR = join(__dirname, "..", "db", "migrations");
 async function main() {
   const url = process.env.POSTGRES_URL;
   if (!url) {
-    console.error(
-      "POSTGRES_URL not set. Provision a Postgres instance (Vercel Postgres, " +
-        "Neon, Supabase, or local) and add the connection string to .env.",
+    // Soft skip: build pipelines call this script as part of the build
+    // step, and some envs (PR previews, local web-only checkouts) don't
+    // have Postgres wired up. Warn instead of failing so those builds
+    // still succeed.
+    console.warn(
+      "⚠ POSTGRES_URL not set — skipping migrations. Save-to-library will return 503 until you add it.",
     );
-    process.exit(1);
+    return;
   }
 
   const client = new pg.Client({ connectionString: url });

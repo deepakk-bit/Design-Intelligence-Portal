@@ -87,7 +87,7 @@ async function loadInter(weight: number): Promise<FontName> {
   try {
     await figma.loadFontAsync(fontName);
     return fontName;
-  } catch {
+  } catch (_err) {
     const fallback: FontName = { family: "Inter", style: "Regular" };
     await figma.loadFontAsync(fallback);
     return fallback;
@@ -198,7 +198,7 @@ function createVector(spec: VectorSpec): SceneNode | null {
     node.y = spec.y;
     node.resize(Math.max(1, spec.w), Math.max(1, spec.h));
     return node;
-  } catch {
+  } catch (_err) {
     // Malformed SVG — return a placeholder rect so the layout doesn't
     // collapse.
     const rect = figma.createRectangle();
@@ -225,7 +225,7 @@ async function createImage(spec: ImageSpec): Promise<RectangleNode> {
         imageHash: img.hash,
       },
     ];
-  } catch {
+  } catch (_err) {
     rect.fills = [{ type: "SOLID", color: { r: 0.92, g: 0.94, b: 0.97 } }];
   }
   return rect;
