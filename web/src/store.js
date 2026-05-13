@@ -167,4 +167,19 @@ export const useCanvasStore = create((set, get) => ({
   addEdge(edge) {
     set({ edges: [...get().edges, edge] });
   },
+
+  // --- Library --------------------------------------------------------
+  // Persisted save collection scoped by the device's library code. The
+  // slice lives in the same store so any panel can subscribe without
+  // prop-drilling, and so the save-button card UI can mark a card as
+  // "already saved this session" by id lookup.
+  library: {
+    saves: [],          // [{id, componentName, description, sections, createdAt}]
+    status: "idle",     // 'idle' | 'loading' | 'error'
+    error: null,
+    lastFetchedAt: 0,
+  },
+  setLibrary(patch) {
+    set({ library: { ...get().library, ...patch } });
+  },
 }));

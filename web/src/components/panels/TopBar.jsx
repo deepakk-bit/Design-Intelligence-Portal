@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, MessageSquare, PanelLeft } from "lucide-react";
+import { ArrowLeft, MessageSquare, PanelLeft, Bookmark } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import UsageChip from "./UsageChip.jsx";
+import LibraryModal from "../library/LibraryModal.jsx";
 
 export default function TopBar() {
   const [, navigate] = useLocation();
@@ -15,6 +16,7 @@ export default function TopBar() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   useEffect(() => setDraft(name), [name]);
 
   return (
@@ -78,6 +80,14 @@ export default function TopBar() {
         <UsageChip />
         <div className="w-px h-5 bg-ink-200 mx-0.5" aria-hidden="true" />
         <button
+          onClick={() => setLibraryOpen(true)}
+          aria-label="Open saved library"
+          title="Saved library + pairing code for the Figma plugin"
+          className="p-1.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+        >
+          <Bookmark size={16} aria-hidden="true" />
+        </button>
+        <button
           onClick={() => toggleRight()}
           aria-label={rightOpen ? "Hide chat panel" : "Show chat panel"}
           aria-pressed={rightOpen}
@@ -89,6 +99,7 @@ export default function TopBar() {
           <MessageSquare size={16} aria-hidden="true" />
         </button>
       </div>
+      {libraryOpen && <LibraryModal onClose={() => setLibraryOpen(false)} />}
     </>
   );
 }

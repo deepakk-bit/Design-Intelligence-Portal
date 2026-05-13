@@ -117,3 +117,61 @@ export async function fileToImagePayload(file) {
   const data = dataUrl.slice(comma + 1);
   return { data, mediaType, dataUrl };
 }
+
+// --- Library API ----------------------------------------------------------
+
+import { getLibraryCode } from "./identity.js";
+
+export class ApiError extends Error {
+  constructor(status, message, payload) {
+    super(message);
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+// Generic fetch wrapper for the library endpoints. Injects the
+// X-Library-Code header so the server can scope reads to the caller.
+async function libraryFetch(path, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set("X-Library-Code", getLibraryCode());
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const res = await fetch(path, { ...init, headers });
+  const isJson = (res.headers.get("content-type") || "").includes(
+    "application/json",
+  );
+  const body = isJson ? await res.json().catch(() => null) : null;
+  if (!res.ok) {
+    const msg =
+      (body && (body.error || body.message)) ||
+      `${res.status} ${res.statusText}`;
+    throw new ApiError(res.status, msg, body);
+  }
+  return body;
+}
+
+export async function listLibrarySaves() {
+  const body = await libraryFetch("/api/library/saves");
+  return body?.saves ?? [];
+}
+
+export async function getLibrarySave(id) {
+  const body = await libraryFetch(`/api/library/saves/${encodeURIComponent(id)}`);
+  return body?.save ?? null;
+}
+
+export async function createLibrarySave(payload) {
+  const body = await libraryFetch("/api/library/saves", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return body?.save ?? null;
+}
+
+export async function deleteLibrarySave(id) {
+  await libraryFetch(`/api/library/saves/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}

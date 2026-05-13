@@ -9,11 +9,14 @@
     "dev": "npm run build && npm run dev:server",
     "build": "npm --prefix web install && npm --prefix web run build",
     "start": "node --env-file-if-exists=.env server.js",
-    "install:web": "npm --prefix web install"
+    "install:web": "npm --prefix web install",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "nanoid": "^5.1.11",
+    "pg": "^8.20.0"
   },
   "engines": {
     "node": ">=20"
