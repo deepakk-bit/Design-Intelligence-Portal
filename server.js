@@ -41,7 +41,13 @@ const {
   handleReferoProbe,
   handleReferoSearch,
   handleTailgridsSketch,
+  handleLibraryList,
+  handleLibraryCreate,
+  handleLibraryGet,
+  handleLibraryDelete,
 } = await import("./lib/handlers.js");
+
+const { HAS_DB } = await import("./lib/db.js");
 
 const PORT = Number(process.env.PORT ?? 4000);
 
@@ -49,6 +55,13 @@ if (!HAS_API_KEY) {
   console.warn(
     "\n  ⚠ ANTHROPIC_API_KEY not set — UI will load, but /api/analyze and /api/chat will return 503.\n" +
       "    To enable: echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env && restart.\n",
+  );
+}
+
+if (!HAS_DB) {
+  console.warn(
+    "  ⚠ POSTGRES_URL not set — Save to library and the Figma plugin pairing flow will return 503.\n" +
+      "    To enable: provision Postgres (Vercel Postgres / Neon / Supabase / local) and add POSTGRES_URL to .env, then `npm run migrate`.\n",
   );
 }
 
@@ -136,6 +149,24 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === "GET" && url.pathname === "/api/tailgrids/sketch") {
     return handleTailgridsSketch(req, res);
+  }
+  // Library: list + create
+  if (url.pathname === "/api/library/saves") {
+    if (req.method === "GET") return handleLibraryList(req, res);
+    if (req.method === "POST") return handleLibraryCreate(req, res);
+    res.setHeader("Allow", "GET, POST");
+    res.writeHead(405).end("method not allowed");
+    return;
+  }
+  // Library: get + delete by id
+  const saveMatch = url.pathname.match(/^\/api\/library\/saves\/([^/]+)$/);
+  if (saveMatch) {
+    const id = decodeURIComponent(saveMatch[1]);
+    if (req.method === "GET") return handleLibraryGet(req, res, { id });
+    if (req.method === "DELETE") return handleLibraryDelete(req, res, { id });
+    res.setHeader("Allow", "GET, DELETE");
+    res.writeHead(405).end("method not allowed");
+    return;
   }
   if (req.method === "GET") {
     return serveStatic(req, res);

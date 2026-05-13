@@ -59,9 +59,13 @@ import {
   CircleHelp,
   CircleX,
   CircleAlert,
+  BookmarkPlus,
+  Bookmark,
+  Loader2,
 } from "lucide-react";
 import { useCanvasStore } from "../../store.js";
 import { getAgentDef } from "../../agents.js";
+import { saveDesign } from "../../lib/library-actions.js";
 
 // Output nodes are categorical: each one bundles a coherent set of related
 // feedback. Three kinds total — keeps the canvas readable while preserving
@@ -215,11 +219,14 @@ export default function OutputNode({ id, data, selected }) {
           </>
         )}
         {kind === "jsxGen" && result?.jsxGen?.combinedJsx && (
-          <JsxGenCopyButton
-            payload={result.jsxGen.combinedJsx}
-            label="Copy JSX"
-            title="Copy the full component (with each state) as a single JSX file"
-          />
+          <>
+            <JsxGenSaveButton jsxGen={result.jsxGen} agentDefId={data.agentDefId} />
+            <JsxGenCopyButton
+              payload={result.jsxGen.combinedJsx}
+              label="Copy JSX"
+              title="Copy the full component (with each state) as a single JSX file"
+            />
+          </>
         )}
         <button
           onClick={() => removeNode(id)}
@@ -2261,6 +2268,79 @@ function JsxGenCopyButton({ payload, label = "Copy", title, variant = "solid" })
           <Copy size={iconSize} aria-hidden="true" /> {label}
         </>
       )}
+    </button>
+  );
+}
+
+// Save-to-library button. Lives next to "Copy JSX" in the JsxGen card
+// header. Fires off a single POST and flips into a "Saved" state for the
+// rest of the session (the saved id is tracked locally so reruns don't
+// re-save the exact same output card). Errors are surfaced inline as the
+// button title — a toast surface would be cleaner but the canvas doesn't
+// have one today.
+function JsxGenSaveButton({ jsxGen, agentDefId }) {
+  const [status, setStatus] = useState("idle"); // idle | pending | saved | error
+  const [savedId, setSavedId] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function onClick() {
+    if (status === "pending" || status === "saved") return;
+    setStatus("pending");
+    setErrorMsg("");
+    try {
+      const save = await saveDesign({
+        agentId: agentDefId || "jsx-generator",
+        componentName: jsxGen.componentName,
+        description: jsxGen.description,
+        sections: jsxGen.sections,
+      });
+      setSavedId(save?.id ?? null);
+      setStatus("saved");
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(err?.message || "save failed");
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  }
+
+  const isSaved = status === "saved";
+  const isPending = status === "pending";
+  const isError = status === "error";
+  const label =
+    status === "saved"
+      ? "Saved"
+      : status === "pending"
+        ? "Saving…"
+        : status === "error"
+          ? "Retry"
+          : "Save";
+  const title = isError
+    ? errorMsg
+    : isSaved
+      ? `Saved to library${savedId ? ` (id ${savedId})` : ""}`
+      : "Save this component to your library so the Figma plugin can find it.";
+  const Icon = isSaved ? Bookmark : isPending ? Loader2 : BookmarkPlus;
+
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      disabled={isPending || isSaved}
+      className={`inline-flex items-center gap-1.5 text-[12px] font-medium rounded-md px-2.5 py-1.5 shrink-0 transition outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+        isSaved
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : isError
+            ? "bg-red-50 text-red-700 border border-red-200"
+            : "bg-white text-ink-700 border border-ink-200 hover:border-brand-400 hover:text-brand-600"
+      } ${isPending ? "opacity-70 cursor-progress" : ""}`}
+    >
+      <Icon
+        size={13}
+        aria-hidden="true"
+        className={isPending ? "animate-spin" : ""}
+      />
+      {label}
     </button>
   );
 }
