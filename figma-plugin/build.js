@@ -21,7 +21,12 @@ const codeBuild = {
   entryPoints: [join(SRC, "code.ts")],
   outfile: join(DIST, "code.js"),
   bundle: true,
-  target: "es2020",
+  // Figma's plugin sandbox is QuickJS-based and rejects some ES2019+
+  // syntax (notably optional catch binding) at parse time. Targeting
+  // es2017 makes esbuild transpile those features down to a form the
+  // sandbox accepts. The UI bundle (browser iframe) keeps a modern
+  // target separately.
+  target: "es2017",
   format: "iife",
   platform: "browser",
   // Figma's plugin sandbox has no DOM, no fetch globals on `code.ts` —
