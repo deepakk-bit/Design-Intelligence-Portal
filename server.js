@@ -45,6 +45,7 @@ const {
   handleLibraryCreate,
   handleLibraryGet,
   handleLibraryDelete,
+  handleLibraryOptions,
 } = await import("./lib/handlers.js");
 
 const { HAS_DB } = await import("./lib/db.js");
@@ -150,11 +151,14 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/api/tailgrids/sketch") {
     return handleTailgridsSketch(req, res);
   }
-  // Library: list + create
+  // Library: list + create. OPTIONS handled separately so the browser's
+  // CORS preflight from the Figma plugin's UI iframe gets a 204 with the
+  // expected Access-Control-* headers instead of falling through to 405.
   if (url.pathname === "/api/library/saves") {
+    if (req.method === "OPTIONS") return handleLibraryOptions(req, res);
     if (req.method === "GET") return handleLibraryList(req, res);
     if (req.method === "POST") return handleLibraryCreate(req, res);
-    res.setHeader("Allow", "GET, POST");
+    res.setHeader("Allow", "GET, POST, OPTIONS");
     res.writeHead(405).end("method not allowed");
     return;
   }
@@ -162,9 +166,10 @@ const server = createServer(async (req, res) => {
   const saveMatch = url.pathname.match(/^\/api\/library\/saves\/([^/]+)$/);
   if (saveMatch) {
     const id = decodeURIComponent(saveMatch[1]);
+    if (req.method === "OPTIONS") return handleLibraryOptions(req, res);
     if (req.method === "GET") return handleLibraryGet(req, res, { id });
     if (req.method === "DELETE") return handleLibraryDelete(req, res, { id });
-    res.setHeader("Allow", "GET, DELETE");
+    res.setHeader("Allow", "GET, DELETE, OPTIONS");
     res.writeHead(405).end("method not allowed");
     return;
   }

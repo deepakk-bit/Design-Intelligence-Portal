@@ -5,6 +5,7 @@
 import {
   handleLibraryList,
   handleLibraryCreate,
+  handleLibraryOptions,
 } from "../../lib/handlers.js";
 
 export const config = {
@@ -12,8 +13,9 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  if (req.method === "OPTIONS") return handleLibraryOptions(req, res);
   if (req.method === "GET") return handleLibraryList(req, res);
   if (req.method === "POST") return handleLibraryCreate(req, res);
-  res.setHeader("Allow", "GET, POST");
+  res.setHeader("Allow", "GET, POST, OPTIONS");
   res.status(405).end("method not allowed");
 }
