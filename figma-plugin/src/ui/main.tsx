@@ -70,14 +70,6 @@ function App() {
   return (
     <Gallery
       config={config}
-      onInsert={(save, section) =>
-        sandboxPost({
-          type: "insert-placeholder",
-          componentName: save.componentName,
-          sectionLabel: section?.label ?? null,
-          saveId: save.id,
-        })
-      }
       onUnpair={() => sandboxPost({ type: "clear-config" })}
     />
   );
